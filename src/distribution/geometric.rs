@@ -91,10 +91,19 @@ impl std::fmt::Display for Geometric {
 }
 
 #[cfg(feature = "rand")]
+impl ::rand::distributions::Distribution<u64> for Geometric {
+    fn sample<R: ::rand::Rng + ?Sized>(&self, r: &mut R) -> u64 {
+        // This cast is safe, because the largest finite value this expression can take is when
+        // `x = 1.4e-45` and `1.0 - self.p = 0.9999999999999999`, in which case we get
+        // `930262250532780300`, which when casted to a `u64` is `930262250532780288`.
+        r.sample::<f64, _>(self) as u64
+    }
+}
+
+#[cfg(feature = "rand")]
 impl ::rand::distributions::Distribution<f64> for Geometric {
     fn sample<R: ::rand::Rng + ?Sized>(&self, r: &mut R) -> f64 {
         use ::rand::distributions::OpenClosed01;
-
         if ulps_eq!(self.p, 1.0) {
             1.0
         } else {
