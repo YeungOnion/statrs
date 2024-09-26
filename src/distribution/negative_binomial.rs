@@ -212,7 +212,11 @@ impl Max<u64> for NegativeBinomial {
     }
 }
 
-impl DiscreteDistribution<f64> for NegativeBinomial {
+impl StandardizedMoment<f64> for NegativeBinomial {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = f64;
+    type Skew = f64;
     /// Returns the mean of the negative binomial distribution.
     ///
     /// # Formula

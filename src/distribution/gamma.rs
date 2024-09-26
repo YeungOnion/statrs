@@ -256,7 +256,12 @@ impl Max<f64> for Gamma {
     }
 }
 
-impl Distribution<f64> for Gamma {
+impl StandardizedMoment<f64> for Gamma {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = ();
+    type Skew = f64;
+
     /// Returns the mean of the gamma distribution
     ///
     /// # Formula

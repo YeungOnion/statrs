@@ -1,6 +1,6 @@
 use crate::distribution::Continuous;
 use crate::function::gamma;
-use crate::statistics::{Max, MeanN, Min, Mode, VarianceN};
+use crate::statistics::{Max, Min, Mode, StandardizedMoment};
 use nalgebra::{Cholesky, Const, DMatrix, Dim, DimMin, Dyn, OMatrix, OVector};
 use std::f64::consts::PI;
 
@@ -259,7 +259,7 @@ where
     }
 }
 
-impl<D> MeanN<OVector<f64, D>> for MultivariateStudent<D>
+impl<D> StandardizedMoment<f64> for MultivariateStudent<D>
 where
     D: Dim,
     nalgebra::DefaultAllocator:
@@ -399,7 +399,7 @@ mod tests  {
 
     use crate::{
         distribution::{Continuous, MultivariateStudent, MultivariateNormal},
-        statistics::{Max, MeanN, Min, Mode, VarianceN},
+        statistics::{Max,  Min, Mode, StandardizedMoment},
     };
 
     use super::MultivariateStudentError;

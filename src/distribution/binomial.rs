@@ -202,7 +202,12 @@ impl Max<u64> for Binomial {
     }
 }
 
-impl Distribution<f64> for Binomial {
+impl StandardizedMoment<f64> for Binomial {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = f64;
+    type Skew = f64;
+
     /// Returns the mean of the binomial distribution
     ///
     /// # Formula
@@ -210,8 +215,8 @@ impl Distribution<f64> for Binomial {
     /// ```text
     /// p * n
     /// ```
-    fn mean(&self) -> Option<f64> {
-        Some(self.p * self.n as f64)
+    fn mean(&self) -> Self::Mu {
+        self.p * self.n as f64
     }
 
     /// Returns the variance of the binomial distribution
@@ -221,27 +226,8 @@ impl Distribution<f64> for Binomial {
     /// ```text
     /// n * p * (1 - p)
     /// ```
-    fn variance(&self) -> Option<f64> {
-        Some(self.p * (1.0 - self.p) * self.n as f64)
-    }
-
-    /// Returns the entropy of the binomial distribution
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// (1 / 2) * ln (2 * π * e * n * p * (1 - p))
-    /// ```
-    fn entropy(&self) -> Option<f64> {
-        let entr = if self.p == 0.0 || ulps_eq!(self.p, 1.0) {
-            0.0
-        } else {
-            (0..self.n + 1).fold(0.0, |acc, x| {
-                let p = self.pmf(x);
-                acc - p * p.ln()
-            })
-        };
-        Some(entr)
+    fn variance(&self) -> Self::Var {
+        self.p * (1.0 - self.p) * self.n as f64
     }
 
     /// Returns the skewness of the binomial distribution
@@ -251,8 +237,41 @@ impl Distribution<f64> for Binomial {
     /// ```text
     /// (1 - 2p) / sqrt(n * p * (1 - p)))
     /// ```
-    fn skewness(&self) -> Option<f64> {
-        Some((1.0 - 2.0 * self.p) / (self.n as f64 * self.p * (1.0 - self.p)).sqrt())
+    fn skewness(&self) -> Self::Skew {
+        (1.0 - 2.0 * self.p) / (self.n as f64 * self.p * (1.0 - self.p)).sqrt()
+    }
+
+    /// Returns the excess kurtosis of the binomial distribution
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// (1 - 6pq) / npq
+    /// ```
+    /// where `q` is the complement of `p`
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        let pq = self.p * self.p * self.p;
+        (1.0 - 6.0 * pq) / (self.n as f64 * pq)
+    }
+}
+
+impl Entropy<f64> for Binomial {
+    /// Returns the entropy of the binomial distribution
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// (1 / 2) * ln (2 * π * e * n * p * (1 - p))
+    /// ```
+    fn entropy(&self) -> f64 {
+        if self.p == 0.0 || ulps_eq!(self.p, 1.0) {
+            0.0
+        } else {
+            (0..self.n + 1).fold(0.0, |acc, x| {
+                let p = self.pmf(x);
+                acc - p * p.ln()
+            })
+        }
     }
 }
 

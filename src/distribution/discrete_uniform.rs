@@ -159,7 +159,11 @@ impl Max<i64> for DiscreteUniform {
     }
 }
 
-impl Distribution<f64> for DiscreteUniform {
+impl StandardizedMoment<f64> for DiscreteUniform {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = f64;
+    type Skew = f64;
     /// Returns the mean of the discrete uniform distribution
     ///
     /// # Formula

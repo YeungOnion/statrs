@@ -1,5 +1,5 @@
 use crate::distribution::Continuous;
-use crate::statistics::{Max, MeanN, Min, Mode, VarianceN};
+use crate::statistics::{Max, Min, Mode, StandardizedMoment};
 use nalgebra::{Cholesky, Const, DMatrix, DVector, Dim, DimMin, Dyn, OMatrix, OVector};
 use std::f64;
 use std::f64::consts::{E, PI};
@@ -264,6 +264,34 @@ where
     }
 }
 
+impl<D> StandardizedMoment<f64> for MultivariateNormal<D>
+where
+    D: DimMin<D>,
+    nalgebra::DefaultAllocator:
+        nalgebra::allocator::Allocator<f64, D> + nalgebra::allocator::Allocator<f64, D, D>,
+{
+    type Mu = OVector<f64, D>;
+    type Var = OMatrix<f64, D, D>;
+    type Kurt = ();
+    type Skew = ();
+
+    fn mean(&self) -> Self::Mu {
+        self.mu.clone()
+    }
+
+    fn variance(&self) -> Self::Var {
+        self.cov.clone()
+    }
+
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        unimplemented!()
+    }
+
+    fn skewness(&self) -> Self::Skew {
+        unimplemented!()
+    }
+}
+
 impl<D> Min<OVector<f64, D>> for MultivariateNormal<D>
 where
     D: Dim,
@@ -379,7 +407,7 @@ mod tests  {
 
     use crate::{
         distribution::{Continuous, MultivariateNormal},
-        statistics::{Max, MeanN, Min, Mode, VarianceN},
+        statistics::{Max, Min, Mode, StandardizedMoment},
     };
 
     use super::MultivariateNormalError;

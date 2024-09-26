@@ -192,7 +192,11 @@ impl Max<f64> for Uniform {
     }
 }
 
-impl Distribution<f64> for Uniform {
+impl StandardizedMoment<f64> for Uniform {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = f64;
+    type Skew = f64;
     /// Returns the mean for the continuous uniform distribution
     ///
     /// # Formula

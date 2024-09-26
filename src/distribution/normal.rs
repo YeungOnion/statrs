@@ -206,7 +206,11 @@ impl Max<f64> for Normal {
     }
 }
 
-impl Distribution<f64> for Normal {
+impl StandardizedMoment<f64> for Normal {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = f64;
+    type Skew = f64;
     /// Returns the mean of the normal distribution
     ///
     /// # Remarks

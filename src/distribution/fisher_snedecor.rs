@@ -239,12 +239,12 @@ impl Max<f64> for FisherSnedecor {
     }
 }
 
-impl Distribution<f64> for FisherSnedecor {
-    /// Returns the mean of the fisher-snedecor distribution
-    ///
-    /// # Panics
-    ///
-    /// If `freedom_2 <= 2.0`
+impl StandardizedMoment<f64> for FisherSnedecor {
+    type Mu = Option<f64>;
+    type Var = Option<f64>;
+    type Kurt = Option<f64>;
+    type Skew = Option<f64>;
+    /// Returns the mean of the fisher-snedecor distribution as `Some` if defined
     ///
     /// # Remarks
     ///

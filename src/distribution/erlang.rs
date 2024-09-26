@@ -169,7 +169,12 @@ impl Max<f64> for Erlang {
     }
 }
 
-impl Distribution<f64> for Erlang {
+impl StandardizedMoment<f64> for Erlang {
+    type Mu = <super::Gamma as StandardizedMoment<f64>>::Mu;
+    type Var = <super::Gamma as StandardizedMoment<f64>>::Var;
+    type Kurt = <super::Gamma as StandardizedMoment<f64>>::Kurt;
+    type Skew = <super::Gamma as StandardizedMoment<f64>>::Skew;
+
     /// Returns the mean of the erlang distribution
     ///
     /// # Remarks

@@ -1,5 +1,5 @@
 use crate::distribution::{Continuous, ContinuousCDF};
-use crate::statistics::{Distribution, Max, Median, Min, Mode};
+use crate::statistics::{Entropy, Max, Median, Min, Mode, StandardizedMoment};
 use std::f64;
 
 /// Implements the [Laplace](https://en.wikipedia.org/wiki/Laplace_distribution)
@@ -213,7 +213,11 @@ impl Max<f64> for Laplace {
     }
 }
 
-impl Distribution<f64> for Laplace {
+impl StandardizedMoment<f64> for Laplace {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = f64;
+    type Skew = f64;
     /// Returns the mode of the laplace distribution
     ///
     /// # Formula
