@@ -199,13 +199,26 @@ impl Min<f64> for Empirical {
     }
 }
 
-impl Distribution<f64> for Empirical {
-    fn mean(&self) -> Option<f64> {
+impl StandardizedMoment<f64> for Empirical {
+    type Mu = Option<f64>;
+    type Var = Option<f64>;
+    type Skew = Option<f64>;
+    type Kurt = Option<f64>;
+
+    fn mean(&self) -> Self::Mu {
         self.mean_and_var.map(|(mean, _)| mean)
     }
 
-    fn variance(&self) -> Option<f64> {
+    fn variance(&self) -> Self::Var {
         self.mean_and_var.map(|(_, var)| var / (self.sum - 1.))
+    }
+
+    fn skewness(&self) -> Self::Skew {
+        unimplemented!()
+    }
+
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        unimplemented!()
     }
 }
 

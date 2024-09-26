@@ -236,7 +236,12 @@ impl Max<f64> for Triangular {
     }
 }
 
-impl Distribution<f64> for Triangular {
+impl StandardizedMoment<f64> for Triangular {
+    type Mu = f64;
+    type Var = f64;
+    type Skew = f64;
+    type Kurt = f64;
+
     /// Returns the mean of the triangular distribution
     ///
     /// # Formula
@@ -244,8 +249,8 @@ impl Distribution<f64> for Triangular {
     /// ```text
     /// (min + max + mode) / 3
     /// ```
-    fn mean(&self) -> Option<f64> {
-        Some((self.min + self.max + self.mode) / 3.0)
+    fn mean(&self) -> Self::Mu {
+        (self.min + self.max + self.mode) / 3.0
     }
 
     /// Returns the variance of the triangular distribution
@@ -255,22 +260,11 @@ impl Distribution<f64> for Triangular {
     /// ```text
     /// (min^2 + max^2 + mode^2 - min * max - min * mode - max * mode) / 18
     /// ```
-    fn variance(&self) -> Option<f64> {
+    fn variance(&self) -> Self::Var {
         let a = self.min;
         let b = self.max;
         let c = self.mode;
-        Some((a * a + b * b + c * c - a * b - a * c - b * c) / 18.0)
-    }
-
-    /// Returns the entropy of the triangular distribution
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// 1 / 2 + ln((max - min) / 2)
-    /// ```
-    fn entropy(&self) -> Option<f64> {
-        Some(0.5 + ((self.max - self.min) / 2.0).ln())
+        (a * a + b * b + c * c - a * b - a * c - b * c) / 18.0
     }
 
     /// Returns the skewness of the triangular distribution
@@ -283,13 +277,30 @@ impl Distribution<f64> for Triangular {
     /// ( 5 * (min^2 + max^2 + mode^2 - min * max - min * mode - max * mode)^(3
     /// / 2))
     /// ```
-    fn skewness(&self) -> Option<f64> {
+    fn skewness(&self) -> Self::Skew {
         let a = self.min;
         let b = self.max;
         let c = self.mode;
         let q = f64::consts::SQRT_2 * (a + b - 2.0 * c) * (2.0 * a - b - c) * (a - 2.0 * b + c);
         let d = 5.0 * (a * a + b * b + c * c - a * b - a * c - b * c).powf(3.0 / 2.0);
-        Some(q / d)
+        q / d
+    }
+
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        -0.6
+    }
+}
+
+impl Entropy<f64> for Triangular {
+    /// Returns the entropy of the triangular distribution
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// 1 / 2 + ln((max - min) / 2)
+    /// ```
+    fn entropy(&self) -> f64 {
+        0.5 + ((self.max - self.min) / 2.0).ln()
     }
 }
 
@@ -437,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_variance() {
-        let variance = |x: Triangular| x.variance().unwrap();
+        let variance = |x: Triangular| x.variance();
         test_exact(0.0, 1.0, 0.5, 0.75 / 18.0, variance);
         test_exact(0.0, 1.0, 0.75, 0.8125 / 18.0, variance);
         test_exact(-5.0, 8.0, -3.5, 151.75 / 18.0, variance);
@@ -448,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_entropy() {
-        let entropy = |x: Triangular| x.entropy().unwrap();
+        let entropy = |x: Triangular| x.entropy();
         test_absolute(0.0, 1.0, 0.5, -0.1931471805599453094172, 1e-16, entropy);
         test_absolute(0.0, 1.0, 0.75, -0.1931471805599453094172, 1e-16, entropy);
         test_exact(-5.0, 8.0, -3.5, 2.371802176901591426636, entropy);
@@ -459,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_skewness() {
-        let skewness = |x: Triangular| x.skewness().unwrap();
+        let skewness = |x: Triangular| x.skewness();
         test_exact(0.0, 1.0, 0.5, 0.0, skewness);
         test_exact(0.0, 1.0, 0.75, -0.4224039833745502226059, skewness);
         test_exact(-5.0, 8.0, -3.5, 0.5375093589712976359809, skewness);

@@ -271,7 +271,12 @@ impl Max<f64> for StudentsT {
     }
 }
 
-impl Distribution<f64> for StudentsT {
+impl StandardizedMoment<f64> for StudentsT {
+    type Mu = Option<f64>;
+    type Var = Option<f64>;
+    type Skew = Option<f64>;
+    type Kurt = Option<f64>;
+
     /// Returns the mean of the student's t-distribution
     ///
     /// # None
@@ -285,7 +290,7 @@ impl Distribution<f64> for StudentsT {
     /// ```
     ///
     /// where `μ` is the location
-    fn mean(&self) -> Option<f64> {
+    fn mean(&self) -> Self::Mu {
         if self.freedom <= 1.0 {
             None
         } else {
@@ -312,7 +317,7 @@ impl Distribution<f64> for StudentsT {
     /// ```
     ///
     /// where `σ` is the scale and `v` is the freedom
-    fn variance(&self) -> Option<f64> {
+    fn variance(&self) -> Self::Var {
         if self.freedom.is_infinite() {
             Some(self.scale * self.scale)
         } else if self.freedom > 2.0 {
@@ -320,28 +325,6 @@ impl Distribution<f64> for StudentsT {
         } else {
             None
         }
-    }
-
-    /// Returns the entropy for the student's t-distribution
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// - ln(σ) + (v + 1) / 2 * (ψ((v + 1) / 2) - ψ(v / 2)) + ln(sqrt(v) * B(v / 2, 1 /
-    /// 2))
-    /// ```
-    ///
-    /// where `σ` is the scale, `v` is the freedom, `ψ` is the digamma function, and `B` is the
-    /// beta function
-    fn entropy(&self) -> Option<f64> {
-        // generalised Student's T is related to normal Student's T by `Y = μ + σ X`
-        // where `X` is distributed as Student's T, plugging into the definition
-        // of entropy shows scaling affects the entropy by an additive constant `- ln σ`
-        let shift = -self.scale.ln();
-        let result = (self.freedom + 1.0) / 2.0
-            * (gamma::digamma((self.freedom + 1.0) / 2.0) - gamma::digamma(self.freedom / 2.0))
-            + (self.freedom.sqrt() * beta::beta(self.freedom / 2.0, 0.5)).ln();
-        Some(result + shift)
     }
 
     /// Returns the skewness of the student's t-distribution
@@ -355,12 +338,46 @@ impl Distribution<f64> for StudentsT {
     /// ```text
     /// 0
     /// ```
-    fn skewness(&self) -> Option<f64> {
+    fn skewness(&self) -> Self::Skew {
         if self.freedom <= 3.0 {
             None
         } else {
             Some(0.0)
         }
+    }
+
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        if self.freedom <= 2.0 {
+            None
+        } else if self.freedom <= 4.0 {
+            Some(f64::INFINITY)
+        } else {
+            Some(6.0 / (self.freedom - 4.0))
+        }
+    }
+}
+
+impl Entropy<f64> for StudentsT {
+    /// Returns the entropy for the student's t-distribution
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// - ln(σ) + (v + 1) / 2 * (ψ((v + 1) / 2) - ψ(v / 2)) + ln(sqrt(v) * B(v / 2, 1 /
+    /// 2))
+    /// ```
+    ///
+    /// where `σ` is the scale, `v` is the freedom, `ψ` is the digamma function, and `B` is the
+    /// beta function
+    fn entropy(&self) -> f64 {
+        // generalised Student's T is related to normal Student's T by `Y = μ + σ X`
+        // where `X` is distributed as Student's T, plugging into the definition
+        // of entropy shows scaling affects the entropy by an additive constant `- ln σ`
+        let shift = -self.scale.ln();
+        let result = (self.freedom + 1.0) / 2.0
+            * (gamma::digamma((self.freedom + 1.0) / 2.0) - gamma::digamma(self.freedom / 2.0))
+            + (self.freedom.sqrt() * beta::beta(self.freedom / 2.0, 0.5)).ln();
+        result + shift
     }
 }
 

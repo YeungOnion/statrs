@@ -298,7 +298,12 @@ impl<D: AsMut<[f64]> + AsRef<[f64]>> Max<f64> for Data<D> {
     }
 }
 
-impl<D: AsMut<[f64]> + AsRef<[f64]>> Distribution<f64> for Data<D> {
+impl<D: AsMut<[f64]> + AsRef<[f64]>> StandardizedMoment<f64> for Data<D> {
+    type Mu = Option<f64>;
+    type Var = Option<f64>;
+    type Kurt = Option<f64>;
+    type Skew = Option<f64>;
+
     /// Evaluates the sample mean, an estimate of the population
     /// mean.
     ///
@@ -330,7 +335,18 @@ impl<D: AsMut<[f64]> + AsRef<[f64]>> Distribution<f64> for Data<D> {
     /// # }
     /// ```
     fn mean(&self) -> Option<f64> {
-        Some(Statistics::mean(self.iter()))
+        if self.0.as_ref().is_empty() {
+            return None;
+        }
+
+        let mut mean = 0.0;
+        for (i, &x) in self.0.as_ref().iter().enumerate() {
+            if x.is_nan() {
+                return Some(f64::NAN);
+            }
+            mean += (x - mean) / (i + 1) as f64;
+        }
+        Some(mean)
     }
 
     /// Estimates the unbiased population variance from the provided samples
@@ -362,7 +378,36 @@ impl<D: AsMut<[f64]> + AsRef<[f64]>> Distribution<f64> for Data<D> {
     /// assert_eq!(z.variance().unwrap(), 19.0 / 3.0);
     /// ```
     fn variance(&self) -> Option<f64> {
-        Some(Statistics::variance(self.iter()))
+        if self.0.as_ref().is_empty() {
+            return None;
+        }
+
+        let mut sum = 0.0;
+        let mut variance = 0.0;
+
+        for (i, &x) in self.0.as_ref().iter().enumerate() {
+            if x.is_nan() {
+                return Some(f64::NAN);
+            }
+            sum += x;
+            let diff = (i + 1) as f64 * x - sum;
+            variance += diff * diff / (i * (i + 1)) as f64
+        }
+        Some(variance / (self.0.as_ref().len() - 1) as f64)
+    }
+
+    fn skewness(&self) -> Self::Skew {
+        if self.0.as_ref().is_empty() {
+            return None;
+        }
+        unimplemented!()
+    }
+
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        if self.0.as_ref().is_empty() {
+            return None;
+        }
+        unimplemented!()
     }
 }
 

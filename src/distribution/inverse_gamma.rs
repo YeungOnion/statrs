@@ -202,7 +202,11 @@ impl Max<f64> for InverseGamma {
     }
 }
 
-impl Distribution<f64> for InverseGamma {
+impl StandardizedMoment<f64> for InverseGamma {
+    type Mu = Option<f64>;
+    type Var = Option<f64>;
+    type Kurt = Option<f64>;
+    type Skew = Option<f64>;
     /// Returns the mean of the inverse distribution
     ///
     /// # None
@@ -216,7 +220,7 @@ impl Distribution<f64> for InverseGamma {
     /// ```
     ///
     /// where `α` is the shape and `β` is the rate
-    fn mean(&self) -> Option<f64> {
+    fn mean(&self) -> Self::Mu {
         if self.shape <= 1.0 {
             None
         } else {
@@ -237,7 +241,7 @@ impl Distribution<f64> for InverseGamma {
     /// ```
     ///
     /// where `α` is the shape and `β` is the rate
-    fn variance(&self) -> Option<f64> {
+    fn variance(&self) -> Self::Var {
         if self.shape <= 2.0 {
             None
         } else {
@@ -245,22 +249,6 @@ impl Distribution<f64> for InverseGamma {
                 / ((self.shape - 1.0) * (self.shape - 1.0) * (self.shape - 2.0));
             Some(val)
         }
-    }
-
-    /// Returns the entropy of the inverse gamma distribution
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// α + ln(β * Γ(α)) - (1 + α) * ψ(α)
-    /// ```
-    ///
-    /// where `α` is the shape, `β` is the rate, `Γ` is the gamma function,
-    /// and `ψ` is the digamma function
-    fn entropy(&self) -> Option<f64> {
-        let entr = self.shape + self.rate.ln() + gamma::ln_gamma(self.shape)
-            - (1.0 + self.shape) * gamma::digamma(self.shape);
-        Some(entr)
     }
 
     /// Returns the skewness of the inverse gamma distribution
@@ -276,12 +264,50 @@ impl Distribution<f64> for InverseGamma {
     /// ```
     ///
     /// where `α` is the shape
-    fn skewness(&self) -> Option<f64> {
+    fn skewness(&self) -> Self::Skew {
         if self.shape <= 3.0 {
             None
         } else {
             Some(4.0 * (self.shape - 2.0).sqrt() / (self.shape - 3.0))
         }
+    }
+
+    /// Returns the excess kurtosis of the inverse gamma distribution
+    ///
+    /// # None
+    ///
+    /// If `shape <= 3`
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// 6 (5α - 11) / (α - 3) / (α - 4)
+    /// ```
+    ///
+    /// where `α` is the shape
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        if self.shape <= 4. {
+            None
+        } else {
+            Some(6. * (5. * self.shape - 11.) / (self.shape - 3.) / (self.shape - 4.))
+        }
+    }
+}
+
+impl Entropy<f64> for InverseGamma {
+    /// Returns the entropy of the inverse gamma distribution
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// α + ln(β * Γ(α)) - (1 + α) * ψ(α)
+    /// ```
+    ///
+    /// where `α` is the shape, `β` is the rate, `Γ` is the gamma function,
+    /// and `ψ` is the digamma function
+    fn entropy(&self) -> f64 {
+        self.shape + self.rate.ln() + gamma::ln_gamma(self.shape)
+            - (1.0 + self.shape) * gamma::digamma(self.shape)
     }
 }
 
@@ -395,7 +421,7 @@ mod tests {
 
     #[test]
     fn test_entropy() {
-        let entropy = |x: InverseGamma| x.entropy().unwrap();
+        let entropy = |x: InverseGamma| x.entropy();
         test_absolute(0.1, 0.1, 11.51625799319234475054, 1e-14, entropy);
         test_absolute(1.0, 1.0, 2.154431329803065721213, 1e-14, entropy);
     }

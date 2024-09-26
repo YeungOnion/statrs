@@ -1,7 +1,7 @@
 use crate::distribution::Discrete;
 use crate::function::factorial;
 use crate::statistics::*;
-use nalgebra::{DVector, Dim, Dyn, OMatrix, OVector};
+use nalgebra::{Cholesky, DVector, Dim, DimMin, Dyn, OMatrix, OVector};
 
 /// Implements the
 /// [Multinomial](https://en.wikipedia.org/wiki/Multinomial_distribution)

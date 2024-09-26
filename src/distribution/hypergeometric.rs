@@ -292,7 +292,12 @@ impl Max<u64> for Hypergeometric {
     }
 }
 
-impl Distribution<f64> for Hypergeometric {
+impl StandardizedMoment<f64> for Hypergeometric {
+    type Mu = Option<f64>;
+    type Var = Option<f64>;
+    type Kurt = Option<f64>;
+    type Skew = Option<f64>;
+
     /// Returns the mean of the hypergeometric distribution
     ///
     /// # None
@@ -306,7 +311,7 @@ impl Distribution<f64> for Hypergeometric {
     /// ```
     ///
     /// where `N` is population, `K` is successes, and `n` is draws
-    fn mean(&self) -> Option<f64> {
+    fn mean(&self) -> Self::Mu {
         if self.population == 0 {
             None
         } else {
@@ -327,7 +332,7 @@ impl Distribution<f64> for Hypergeometric {
     /// ```
     ///
     /// where `N` is population, `K` is successes, and `n` is draws
-    fn variance(&self) -> Option<f64> {
+    fn variance(&self) -> Self::Var {
         if self.population <= 1 {
             None
         } else {
@@ -352,7 +357,7 @@ impl Distribution<f64> for Hypergeometric {
     /// ```
     ///
     /// where `N` is population, `K` is successes, and `n` is draws
-    fn skewness(&self) -> Option<f64> {
+    fn skewness(&self) -> Self::Skew {
         if self.population <= 2 {
             None
         } else {
@@ -364,6 +369,37 @@ impl Distribution<f64> for Hypergeometric {
                     * (population - 2.0));
             Some(val)
         }
+    }
+
+    /// Returns the excess kurtosis of the hypergeometric distribution
+    ///
+    /// # Formula
+    /// if N >= 3
+    /// ```text
+    /// $$
+    /// \frac{1}{n K (N - K)(N-n)(N-2)(N-3)}\left[N^2(N-1)\left(N(N+1) - 6K(N-K) - 6n(N-n)\right) + 6 n K (N-K)(N-n)(5N-6)\right]
+    /// $$
+    /// ```
+    /// `None` otherwise
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        if self.population < 3 {
+            return None;
+        }
+        let pop = self.population as f64;
+        let succ = self.successes as f64;
+        let n = self.draws as f64;
+
+        let pop_sqr = (self.population * self.population) as f64;
+        let pop_m2 = (self.population - 2) as f64;
+        let pop_m3 = (self.population - 3) as f64;
+        let pop_mn = (self.population - self.draws) as f64;
+        let pop_msucc = (self.population - self.successes) as f64;
+
+        let kurt_a_inv = n * succ * pop_msucc * pop_mn * pop_m2 * pop_m3;
+        let kurt_b =
+            pop * (pop_sqr - pop) * (pop_sqr + pop - 6. * succ * pop_msucc - 6. * n * pop_mn)
+                + 6. * n * succ * pop_msucc * pop_mn * (5. * pop - 6.);
+        Some(kurt_b / kurt_a_inv)
     }
 }
 

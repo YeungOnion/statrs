@@ -34,29 +34,6 @@ pub trait Max<T> {
     fn max(&self) -> T;
 }
 
-pub trait DiscreteDistribution<T: Float> {
-    /// Returns the mean, if it exists.
-    fn mean(&self) -> Option<T> {
-        None
-    }
-    /// Returns the variance, if it exists.
-    fn variance(&self) -> Option<T> {
-        None
-    }
-    /// Returns the standard deviation, if it exists.
-    fn std_dev(&self) -> Option<T> {
-        self.variance().map(|var| var.sqrt())
-    }
-    /// Returns the entropy, if it exists.
-    fn entropy(&self) -> Option<T> {
-        None
-    }
-    /// Returns the skewness, if it exists.
-    fn skewness(&self) -> Option<T> {
-        None
-    }
-}
-
 /// Exposes an entropy method, uses base e, (not Shannon, which base 2).
 pub trait Entropy<T> {
     fn entropy(&self) -> T;
@@ -116,7 +93,7 @@ mod multivariate {
         fn forward(&self, other: Self::V) -> Self::V {
             let mut std_dev = self.clone().map(|x| x.sqrt());
             for i in 0..std_dev.len() {
-                std_dev[i] = std_dev[i] * other[i]
+                std_dev[i] *= other[i]
             }
             std_dev
         }
@@ -124,7 +101,7 @@ mod multivariate {
         fn inverse(&self, other: Self::V) -> Self::V {
             let mut inv_std_dev = self.clone().map(|x| x.sqrt().recip());
             for i in 0..inv_std_dev.len() {
-                inv_std_dev[i] = inv_std_dev[i] * other[i]
+                inv_std_dev[i] *= other[i]
             }
             inv_std_dev
         }

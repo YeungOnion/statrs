@@ -179,7 +179,12 @@ impl Max<f64> for Exp {
     }
 }
 
-impl Distribution<f64> for Exp {
+impl StandardizedMoment<f64> for Exp {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = f64;
+    type Skew = f64;
+
     /// Returns the mean of the exponential distribution
     ///
     /// # Formula
@@ -189,8 +194,8 @@ impl Distribution<f64> for Exp {
     /// ```
     ///
     /// where `λ` is the rate
-    fn mean(&self) -> Option<f64> {
-        Some(1.0 / self.rate)
+    fn mean(&self) -> f64 {
+        self.rate.recip()
     }
 
     /// Returns the variance of the exponential distribution
@@ -202,21 +207,8 @@ impl Distribution<f64> for Exp {
     /// ```
     ///
     /// where `λ` is the rate
-    fn variance(&self) -> Option<f64> {
-        Some(1.0 / (self.rate * self.rate))
-    }
-
-    /// Returns the entropy of the exponential distribution
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// 1 - ln(λ)
-    /// ```
-    ///
-    /// where `λ` is the rate
-    fn entropy(&self) -> Option<f64> {
-        Some(1.0 - self.rate.ln())
+    fn variance(&self) -> Self::Var {
+        self.rate.powi(-2)
     }
 
     /// Returns the skewness of the exponential distribution
@@ -226,8 +218,34 @@ impl Distribution<f64> for Exp {
     /// ```text
     /// 2
     /// ```
-    fn skewness(&self) -> Option<f64> {
-        Some(2.0)
+    fn skewness(&self) -> Self::Skew {
+        2.0
+    }
+
+    /// Returns the excess kurtosis of the exponential distribution
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// 6
+    /// ```
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        6.0
+    }
+}
+
+impl Entropy<f64> for Exp {
+    /// Returns the entropy of the exponential distribution
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// 1 - ln(λ)
+    /// ```
+    ///
+    /// where `λ` is the rate
+    fn entropy(&self) -> f64 {
+        1.0 - self.rate.ln()
     }
 }
 
@@ -323,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_mean() {
-        let mean = |x: Exp| x.mean().unwrap();
+        let mean = |x: Exp| x.mean();
         test_exact(0.1, 10.0, mean);
         test_exact(1.0, 1.0, mean);
         test_exact(10.0, 0.1, mean);
@@ -331,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_variance() {
-        let variance = |x: Exp| x.variance().unwrap();
+        let variance = |x: Exp| x.variance();
         test_absolute(0.1, 100.0, 1e-13, variance);
         test_exact(1.0, 1.0, variance);
         test_exact(10.0, 0.01, variance);
@@ -339,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_entropy() {
-        let entropy = |x: Exp| x.entropy().unwrap();
+        let entropy = |x: Exp| x.entropy();
         test_absolute(0.1, 3.302585092994045684018, 1e-15, entropy);
         test_exact(1.0, 1.0, entropy);
         test_absolute(10.0, -1.302585092994045684018, 1e-15, entropy);
@@ -347,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_skewness() {
-        let skewness = |x: Exp| x.skewness().unwrap();
+        let skewness = |x: Exp| x.skewness();
         test_exact(0.1, 2.0, skewness);
         test_exact(1.0, 2.0, skewness);
         test_exact(10.0, 2.0, skewness);

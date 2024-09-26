@@ -1,4 +1,5 @@
 use crate::distribution::{Discrete, DiscreteCDF};
+use crate::function::factorial::factorial;
 use crate::function::{factorial, gamma};
 use crate::statistics::*;
 use std::f64;
@@ -173,7 +174,12 @@ impl Max<u64> for Poisson {
     }
 }
 
-impl Distribution<f64> for Poisson {
+impl StandardizedMoment<f64> for Poisson {
+    type Mu = f64;
+    type Var = f64;
+    type Kurt = f64;
+    type Skew = f64;
+
     /// Returns the mean of the poisson distribution
     ///
     /// # Formula
@@ -183,8 +189,8 @@ impl Distribution<f64> for Poisson {
     /// ```
     ///
     /// where `λ` is the rate
-    fn mean(&self) -> Option<f64> {
-        Some(self.lambda)
+    fn mean(&self) -> Self::Mu {
+        self.lambda
     }
 
     /// Returns the variance of the poisson distribution
@@ -196,26 +202,8 @@ impl Distribution<f64> for Poisson {
     /// ```
     ///
     /// where `λ` is the rate
-    fn variance(&self) -> Option<f64> {
-        Some(self.lambda)
-    }
-
-    /// Returns the entropy of the poisson distribution
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// (1 / 2) * ln(2πeλ) - 1 / (12λ) - 1 / (24λ^2) - 19 / (360λ^3)
-    /// ```
-    ///
-    /// where `λ` is the rate
-    fn entropy(&self) -> Option<f64> {
-        Some(
-            0.5 * (2.0 * f64::consts::PI * f64::consts::E * self.lambda).ln()
-                - 1.0 / (12.0 * self.lambda)
-                - 1.0 / (24.0 * self.lambda * self.lambda)
-                - 19.0 / (360.0 * self.lambda * self.lambda * self.lambda),
-        )
+    fn variance(&self) -> Self::Var {
+        self.lambda
     }
 
     /// Returns the skewness of the poisson distribution
@@ -227,8 +215,45 @@ impl Distribution<f64> for Poisson {
     /// ```
     ///
     /// where `λ` is the rate
-    fn skewness(&self) -> Option<f64> {
-        Some(1.0 / self.lambda.sqrt())
+    fn skewness(&self) -> Self::Skew {
+        self.lambda.sqrt().recip()
+    }
+
+    /// Returns the excess kurtosis for the Poisson distribution
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        self.lambda.recip()
+    }
+}
+
+impl Entropy<f64> for Poisson {
+    /// Returns the entropy of the poisson distribution
+    ///
+    /// # Formula
+    ///
+    /// ```text
+    /// (1 / 2) * ln(2πeλ) - 1 / (12λ) - 1 / (24λ^2) - 19 / (360λ^3)
+    /// ```
+    ///
+    /// where `λ` is the rate
+    fn entropy(&self) -> f64 {
+        if self.lambda > 10. {
+            0.5 * (2.0 * f64::consts::PI * f64::consts::E * self.lambda).ln()
+                - 1.0 / (12.0 * self.lambda)
+                - 1.0 / (24.0 * self.lambda * self.lambda)
+                - 19.0 / (360.0 * self.lambda * self.lambda * self.lambda)
+        } else {
+            let mut sum = 0.;
+            for a in (0..).map(|k| {
+                let fac = factorial(k);
+                self.lambda.powi(k as i32) * fac.ln() / fac
+            }) {
+                if a / sum < 1e-16 {
+                    break;
+                }
+                sum += a;
+            }
+            self.lambda * (1. - self.lambda.ln()) + self.lambda.exp() * sum
+        }
     }
 }
 
@@ -361,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_mean() {
-        let mean = |x: Poisson| x.mean().unwrap();
+        let mean = |x: Poisson| x.mean();
         test_exact(1.5, 1.5, mean);
         test_exact(5.4, 5.4, mean);
         test_exact(10.8, 10.8, mean);
@@ -369,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_variance() {
-        let variance = |x: Poisson| x.variance().unwrap();
+        let variance = |x: Poisson| x.variance();
         test_exact(1.5, 1.5, variance);
         test_exact(5.4, 5.4, variance);
         test_exact(10.8, 10.8, variance);
@@ -377,7 +402,7 @@ mod tests {
 
     #[test]
     fn test_entropy() {
-        let entropy = |x: Poisson| x.entropy().unwrap();
+        let entropy = |x: Poisson| x.entropy();
         test_absolute(1.5, 1.531959153102376331946, 1e-15, entropy);
         test_absolute(5.4, 2.244941839577643504608, 1e-15, entropy);
         test_exact(10.8, 2.600596429676975222694, entropy);
@@ -385,7 +410,7 @@ mod tests {
 
     #[test]
     fn test_skewness() {
-        let skewness = |x: Poisson| x.skewness().unwrap();
+        let skewness = |x: Poisson| x.skewness();
         test_absolute(1.5, 0.8164965809277260327324, 1e-15, skewness);
         test_absolute(5.4, 0.4303314829119352094644, 1e-16, skewness);
         test_absolute(10.8, 0.3042903097250922852539, 1e-16, skewness);

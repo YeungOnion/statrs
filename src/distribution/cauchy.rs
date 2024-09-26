@@ -196,7 +196,22 @@ impl Max<f64> for Cauchy {
     }
 }
 
-impl Distribution<f64> for Cauchy {
+impl StandardizedMoment<f64> for Cauchy {
+    type Mu = ();
+    type Var = ();
+    type Skew = ();
+    type Kurt = ();
+
+    fn mean(&self) -> Self::Mu {}
+
+    fn variance(&self) -> Self::Var {}
+
+    fn skewness(&self) -> Self::Skew {}
+
+    fn excess_kurtosis(&self) -> Self::Kurt {}
+}
+
+impl Entropy<f64> for Cauchy {
     /// Returns the entropy of the cauchy distribution
     ///
     /// # Formula
@@ -206,8 +221,8 @@ impl Distribution<f64> for Cauchy {
     /// ```
     ///
     /// where `γ` is the scale
-    fn entropy(&self) -> Option<f64> {
-        Some((4.0 * f64::consts::PI * self.scale).ln())
+    fn entropy(&self) -> f64 {
+        (4.0 * f64::consts::PI * self.scale).ln()
     }
 }
 
@@ -311,7 +326,7 @@ mod tests {
 
     #[test]
     fn test_entropy() {
-        let entropy = |x: Cauchy| x.entropy().unwrap();
+        let entropy = |x: Cauchy| x.entropy();
         test_exact(0.0, 2.0, 3.224171427529236102395, entropy);
         test_exact(0.1, 4.0, 3.917318608089181411812, entropy);
         test_exact(1.0, 10.0, 4.833609339963336476996, entropy);
