@@ -218,7 +218,7 @@ impl Discrete<u64, f64> for Bernoulli {
     }
 }
 
-impl CentralMoment<f64> for Bernoulli {
+impl StandardizedMoment<f64> for Bernoulli {
     type Mu = f64;
     type Var = f64;
     type Kurt = f64;

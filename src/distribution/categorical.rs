@@ -241,8 +241,8 @@ impl Max<u64> for Categorical {
 impl StandardizedMoment<f64> for Categorical {
     type Mu = f64;
     type Var = f64;
-    type Kurt = ();
-    type Skew = ();
+    type Kurt = f64;
+    type Skew = f64;
 
     /// Returns the mean of the categorical distribution
     ///
@@ -284,9 +284,13 @@ impl StandardizedMoment<f64> for Categorical {
             .sum()
     }
 
-    fn skewness(&self) -> Self::Skew {}
+    fn skewness(&self) -> Self::Skew {
+        unimplemented!()
+    }
 
-    fn excess_kurtosis(&self) -> Self::Kurt {}
+    fn excess_kurtosis(&self) -> Self::Kurt {
+        unimplemented!()
+    }
 }
 
 impl Entropy<f64> for Categorical {

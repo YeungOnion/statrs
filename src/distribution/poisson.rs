@@ -1,5 +1,4 @@
 use crate::distribution::{Discrete, DiscreteCDF};
-use crate::function::factorial::factorial;
 use crate::function::{factorial, gamma};
 use crate::statistics::*;
 use std::f64;
@@ -236,24 +235,11 @@ impl Entropy<f64> for Poisson {
     ///
     /// where `λ` is the rate
     fn entropy(&self) -> f64 {
-        if self.lambda > 10. {
-            0.5 * (2.0 * f64::consts::PI * f64::consts::E * self.lambda).ln()
-                - 1.0 / (12.0 * self.lambda)
-                - 1.0 / (24.0 * self.lambda * self.lambda)
-                - 19.0 / (360.0 * self.lambda * self.lambda * self.lambda)
-        } else {
-            let mut sum = 0.;
-            for a in (0..).map(|k| {
-                let fac = factorial(k);
-                self.lambda.powi(k as i32) * fac.ln() / fac
-            }) {
-                if a / sum < 1e-16 {
-                    break;
-                }
-                sum += a;
-            }
-            self.lambda * (1. - self.lambda.ln()) + self.lambda.exp() * sum
-        }
+        // TODO: this is only valid for large lambda
+        0.5 * (2.0 * f64::consts::PI * f64::consts::E * self.lambda).ln()
+            - 1.0 / (12.0 * self.lambda)
+            - 1.0 / (24.0 * self.lambda * self.lambda)
+            - 19.0 / (360.0 * self.lambda * self.lambda * self.lambda)
     }
 }
 

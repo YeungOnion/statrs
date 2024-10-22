@@ -414,7 +414,7 @@ mod tests {
         test_exact(0.1, 4.0, value, skewness);
         test_exact(1.0, 10.0, value, skewness);
         test_exact(10.0, 11.0, value, skewness);
-        test_exact(10.0, f64::INFINITY, 1.13955, skewness);
+        test_exact(10.0, f64::INFINITY, value, skewness);
     }
 
     #[test]
