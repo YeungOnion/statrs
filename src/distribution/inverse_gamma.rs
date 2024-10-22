@@ -10,13 +10,14 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{InverseGamma, Continuous};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{InverseGamma, InverseGammaError, Continuous};
+/// use statrs::statistics::*;
 /// use statrs::prec;
 ///
-/// let n = InverseGamma::new(1.1, 0.1).unwrap();
+/// let n = InverseGamma::new(1.1, 0.1)?;
 /// assert!(prec::almost_eq(n.mean().unwrap(), 1.0, 1e-14));
 /// assert_eq!(n.pdf(1.0), 0.07554920138253064);
+/// # Ok::<(), InverseGammaError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct InverseGamma {
@@ -88,10 +89,11 @@ impl InverseGamma {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::InverseGamma;
+    /// use statrs::distribution::{InverseGamma, InverseGammaError};
     ///
-    /// let n = InverseGamma::new(3.0, 1.0).unwrap();
+    /// let n = InverseGamma::new(3.0, 1.0)?;
     /// assert_eq!(n.shape(), 3.0);
+    /// # Ok::<(), InverseGammaError>(())
     /// ```
     pub fn shape(&self) -> f64 {
         self.shape
@@ -102,10 +104,11 @@ impl InverseGamma {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::InverseGamma;
+    /// use statrs::distribution::{InverseGamma, InverseGammaError};
     ///
-    /// let n = InverseGamma::new(3.0, 1.0).unwrap();
+    /// let n = InverseGamma::new(3.0, 1.0)?;
     /// assert_eq!(n.rate(), 1.0);
+    /// # Ok::<(), InverseGammaError>(())
     /// ```
     pub fn rate(&self) -> f64 {
         self.rate

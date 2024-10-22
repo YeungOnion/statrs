@@ -8,12 +8,13 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Laplace, Continuous};
-/// use statrs::statistics::Mode;
+/// use statrs::distribution::{Laplace, Continuous, LaplaceError};
+/// use statrs::statistics::*;
 ///
-/// let n = Laplace::new(0.0, 1.0).unwrap();
+/// let n = Laplace::new(0.0, 1.0)?;
 /// assert_eq!(n.mode().unwrap(), 0.0);
 /// assert_eq!(n.pdf(1.0), 0.18393972058572117);
+/// # Ok::<(), LaplaceError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Laplace {
@@ -80,10 +81,11 @@ impl Laplace {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Laplace;
+    /// use statrs::distribution::{Laplace, LaplaceError};
     ///
-    /// let n = Laplace::new(0.0, 1.0).unwrap();
+    /// let n = Laplace::new(0.0, 1.0)?;
     /// assert_eq!(n.location(), 0.0);
+    /// # Ok::<(), LaplaceError>(())
     /// ```
     pub fn location(&self) -> f64 {
         self.location
@@ -94,10 +96,11 @@ impl Laplace {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Laplace;
+    /// use statrs::distribution::{Laplace, LaplaceError};
     ///
     /// let n = Laplace::new(0.0, 1.0).unwrap();
     /// assert_eq!(n.scale(), 1.0);
+    /// # Ok::<(), LaplaceError>(())
     /// ```
     pub fn scale(&self) -> f64 {
         self.scale

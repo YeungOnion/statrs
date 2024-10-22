@@ -9,10 +9,11 @@ pub trait Min<T> {
     ///
     /// ```
     /// use statrs::statistics::Min;
-    /// use statrs::distribution::Uniform;
+    /// use statrs::distribution::{Uniform, UniformError};
     ///
-    /// let n = Uniform::new(0.0, 1.0).unwrap();
+    /// let n = Uniform::new(0.0, 1.0)?;
     /// assert_eq!(0.0, n.min());
+    /// # Ok::<(), UniformError>(())
     /// ```
     fn min(&self) -> T;
 }
@@ -26,10 +27,11 @@ pub trait Max<T> {
     ///
     /// ```
     /// use statrs::statistics::Max;
-    /// use statrs::distribution::Uniform;
+    /// use statrs::distribution::{Uniform, UniformError};
     ///
-    /// let n = Uniform::new(0.0, 1.0).unwrap();
+    /// let n = Uniform::new(0.0, 1.0)?;
     /// assert_eq!(1.0, n.max());
+    /// # Ok::<(), UniformError>(())
     /// ```
     fn max(&self) -> T;
 }
@@ -238,10 +240,11 @@ pub trait Median<T> {
     ///
     /// ```
     /// use statrs::statistics::Median;
-    /// use statrs::distribution::Uniform;
+    /// use statrs::distribution::{Uniform, UniformError};
     ///
-    /// let n = Uniform::new(0.0, 1.0).unwrap();
+    /// let n = Uniform::new(0.0, 1.0)?;
     /// assert_eq!(0.5, n.median());
+    /// # Ok::<(), UniformError>(())
     /// ```
     fn median(&self) -> T;
 }
@@ -255,10 +258,11 @@ pub trait Mode<T> {
     ///
     /// ```
     /// use statrs::statistics::Mode;
-    /// use statrs::distribution::Uniform;
+    /// use statrs::distribution::{Uniform, UniformError};
     ///
-    /// let n = Uniform::new(0.0, 1.0).unwrap();
+    /// let n = Uniform::new(0.0, 1.0)?;
     /// assert_eq!(Some(0.5), n.mode());
+    /// # Ok::<(), UniformError>(())
     /// ```
     fn mode(&self) -> T;
 }

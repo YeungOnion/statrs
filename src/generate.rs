@@ -265,20 +265,15 @@ impl InfiniteTriangle {
     /// # Examples
     ///
     /// ```
-    /// #[macro_use]
-    /// extern crate statrs;
-    ///
+    /// use approx::assert_relative_eq;
     /// use statrs::generate::InfiniteTriangle;
-    ///
-    /// # fn main() {
     /// let x = InfiniteTriangle::new(4, 7, 1.0, -1.0,
     /// 1).take(12).collect::<Vec<f64>>();
     /// let expected: [f64; 12] = [-0.714, -1.0, -0.5, 0.0, 0.5, 1.0, 0.714,
     /// 0.429, 0.143, -0.143, -0.429, -0.714];
     /// for (&left, &right) in x.iter().zip(expected.iter()) {
-    ///     assert_almost_eq!(left, right, 1e-3);
+    ///     assert_relative_eq!(left, right, epsilon=1e-3);
     /// }
-    /// # }
     /// ```
     pub fn new(
         raise_duration: i64,

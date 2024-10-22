@@ -9,13 +9,14 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Poisson, Discrete};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{Poisson, PoissonError, Discrete};
+/// use statrs::statistics::*;
 /// use statrs::prec;
 ///
-/// let n = Poisson::new(1.0).unwrap();
-/// assert_eq!(n.mean().unwrap(), 1.0);
+/// let n = Poisson::new(1.0)?;
+/// assert_eq!(n.mean(), 1.0);
 /// assert!(prec::almost_eq(n.pmf(1), 0.367879441171442, 1e-15));
+/// # Ok::<(), PoissonError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Poisson {
@@ -73,10 +74,11 @@ impl Poisson {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Poisson;
+    /// use statrs::distribution::{Poisson, PoissonError};
     ///
-    /// let n = Poisson::new(1.0).unwrap();
+    /// let n = Poisson::new(1.0)?;
     /// assert_eq!(n.lambda(), 1.0);
+    /// # Ok::<(), PoissonError>(())
     /// ```
     pub fn lambda(&self) -> f64 {
         self.lambda

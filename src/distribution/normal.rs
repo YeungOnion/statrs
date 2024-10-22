@@ -10,12 +10,13 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Normal, Continuous};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{Normal, Continuous, NormalError};
+/// use statrs::statistics::*;
 ///
-/// let n = Normal::new(0.0, 1.0).unwrap();
-/// assert_eq!(n.mean().unwrap(), 0.0);
+/// let n = Normal::new(0.0, 1.0)?;
+/// assert_eq!(n.mean(), 0.0);
 /// assert_eq!(n.pdf(1.0), 0.2419707245191433497978);
+/// # Ok::<(), NormalError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Normal {

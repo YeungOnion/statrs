@@ -8,13 +8,14 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Pareto, Continuous};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{Pareto, Continuous, ParetoError};
+/// use statrs::statistics::*;
 /// use statrs::prec;
 ///
-/// let p = Pareto::new(1.0, 2.0).unwrap();
+/// let p = Pareto::new(1.0, 2.0)?;
 /// assert_eq!(p.mean().unwrap(), 2.0);
 /// assert!(prec::almost_eq(p.pdf(2.0), 0.25, 1e-15));
+/// # Ok::<(), ParetoError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Pareto {
@@ -82,10 +83,11 @@ impl Pareto {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Pareto;
+    /// use statrs::distribution::{Pareto, ParetoError};
     ///
-    /// let n = Pareto::new(1.0, 2.0).unwrap();
+    /// let n = Pareto::new(1.0, 2.0)?;
     /// assert_eq!(n.scale(), 1.0);
+    /// # Ok::<(), ParetoError>(())
     /// ```
     pub fn scale(&self) -> f64 {
         self.scale
@@ -96,10 +98,11 @@ impl Pareto {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Pareto;
+    /// use statrs::distribution::{Pareto, ParetoError};
     ///
-    /// let n = Pareto::new(1.0, 2.0).unwrap();
+    /// let n = Pareto::new(1.0, 2.0)?;
     /// assert_eq!(n.shape(), 2.0);
+    /// # Ok::<(), ParetoError>(())
     /// ```
     pub fn shape(&self) -> f64 {
         self.shape

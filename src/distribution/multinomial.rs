@@ -12,12 +12,13 @@ use nalgebra::{Cholesky, DVector, Dim, DimMin, Dyn, OMatrix, OVector};
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::Multinomial;
-/// use statrs::statistics::MeanN;
+/// use statrs::distribution::{Multinomial, MultinomialError};
+/// use statrs::statistics::StandardizedMoment;
 /// use nalgebra::vector;
 ///
-/// let n = Multinomial::new_from_nalgebra(vector![0.3, 0.7], 5).unwrap();
-/// assert_eq!(n.mean().unwrap(), (vector![1.5, 3.5]));
+/// let n = Multinomial::new_from_nalgebra(vector![0.3, 0.7], 5)?;
+/// assert_eq!(n.mean(), (vector![1.5, 3.5]));
+/// # Ok::<(), MultinomialError>(())
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Multinomial<D>
@@ -123,11 +124,12 @@ where
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Multinomial;
+    /// use statrs::distribution::{Multinomial, MultinomialError};
     /// use nalgebra::dvector;
     ///
-    /// let n = Multinomial::new(vec![0.0, 1.0, 2.0], 3).unwrap();
+    /// let n = Multinomial::new(vec![0.0, 1.0, 2.0], 3)?;
     /// assert_eq!(*n.p(), dvector![0.0, 1.0/3.0, 2.0/3.0]);
+    /// # Ok::<(), MultinomialError>(())
     /// ```
     pub fn p(&self) -> &OVector<f64, D> {
         &self.p
@@ -139,10 +141,11 @@ where
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Multinomial;
+    /// use statrs::distribution::{Multinomial, MultinomialError};
     ///
-    /// let n = Multinomial::new(vec![0.0, 1.0, 2.0], 3).unwrap();
+    /// let n = Multinomial::new(vec![0.0, 1.0, 2.0], 3)?;
     /// assert_eq!(n.n(), 3);
+    /// # Ok::<(), MultinomialError>(())
     /// ```
     pub fn n(&self) -> u64 {
         self.n

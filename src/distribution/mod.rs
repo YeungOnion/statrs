@@ -2,8 +2,8 @@
 //! and provides
 //! concrete implementations for a variety of distributions.
 use super::statistics::{Max, Min};
-use ::num_traits::{Float, Num};
 use num_traits::NumAssignOps;
+use num_traits::{Float, Num};
 
 pub use self::bernoulli::Bernoulli;
 pub use self::beta::{Beta, BetaError};
@@ -101,10 +101,11 @@ pub trait ContinuousCDF<K: Float, T: Float>: Min<K> + Max<K> {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::{ContinuousCDF, Uniform};
+    /// use statrs::distribution::{ContinuousCDF, Uniform, UniformError};
     ///
-    /// let n = Uniform::new(0.0, 1.0).unwrap();
+    /// let n = Uniform::new(0.0, 1.0)?;
     /// assert_eq!(0.5, n.cdf(0.5));
+    /// # Ok::<(), UniformError>(())
     /// ```
     fn cdf(&self, x: K) -> T;
 
@@ -115,10 +116,11 @@ pub trait ContinuousCDF<K: Float, T: Float>: Min<K> + Max<K> {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::{ContinuousCDF, Uniform};
+    /// use statrs::distribution::{ContinuousCDF, Uniform, UniformError};
     ///
-    /// let n = Uniform::new(0.0, 1.0).unwrap();
+    /// let n = Uniform::new(0.0, 1.0)?;
     /// assert_eq!(0.5, n.sf(0.5));
+    /// # Ok::<(), UniformError>(())
     /// ```
     fn sf(&self, x: K) -> T {
         T::one() - self.cdf(x)
@@ -175,9 +177,11 @@ pub trait DiscreteCDF<K: Sized + Num + Ord + Clone + NumAssignOps, T: Float>:
     ///
     /// ```
     /// use statrs::distribution::{DiscreteCDF, DiscreteUniform};
+    /// # use statrs::distribution::DiscreteUniformError;
     ///
-    /// let n = DiscreteUniform::new(1, 10).unwrap();
+    /// let n = DiscreteUniform::new(1, 10)?;
     /// assert_eq!(0.6, n.cdf(6));
+    /// # Ok::<(), DiscreteUniformError>(())
     /// ```
     fn cdf(&self, x: K) -> T;
 
@@ -188,9 +192,11 @@ pub trait DiscreteCDF<K: Sized + Num + Ord + Clone + NumAssignOps, T: Float>:
     ///
     /// ```
     /// use statrs::distribution::{DiscreteCDF, DiscreteUniform};
+    /// # use statrs::distribution::DiscreteUniformError;
     ///
-    /// let n = DiscreteUniform::new(1, 10).unwrap();
+    /// let n = DiscreteUniform::new(1, 10)?;
     /// assert_eq!(0.4, n.sf(6));
+    /// # Ok::<(), DiscreteUniformError>(())
     /// ```
     fn sf(&self, x: K) -> T {
         T::one() - self.cdf(x)
@@ -238,9 +244,11 @@ pub trait Continuous<K, T> {
     ///
     /// ```
     /// use statrs::distribution::{Continuous, Uniform};
+    /// # use statrs::distribution::UniformError;
     ///
-    /// let n = Uniform::new(0.0, 1.0).unwrap();
+    /// let n = Uniform::new(0.0, 1.0)?;
     /// assert_eq!(1.0, n.pdf(0.5));
+    /// # Ok::<(), UniformError>(())
     /// ```
     fn pdf(&self, x: K) -> T;
 
@@ -252,9 +260,11 @@ pub trait Continuous<K, T> {
     ///
     /// ```
     /// use statrs::distribution::{Continuous, Uniform};
+    /// # use statrs::distribution::UniformError;
     ///
-    /// let n = Uniform::new(0.0, 1.0).unwrap();
+    /// let n = Uniform::new(0.0, 1.0)?;
     /// assert_eq!(0.0, n.ln_pdf(0.5));
+    /// # Ok::<(), UniformError>(())
     /// ```
     fn ln_pdf(&self, x: K) -> T;
 }
@@ -265,8 +275,7 @@ pub trait Continuous<K, T> {
 /// # Remarks
 ///
 /// All methods provided by the `Discrete` trait are unchecked, meaning
-/// they can panic if in an invalid state or encountering invalid input
-/// depending on the implementing distribution.
+/// they can panic if in an invalid state or encountering invalid input depending on the implementing distribution.
 pub trait Discrete<K, T> {
     /// Returns the probability mass function calculated at `x` for a given
     /// distribution.
@@ -277,9 +286,11 @@ pub trait Discrete<K, T> {
     /// ```
     /// use statrs::distribution::{Discrete, Binomial};
     /// use statrs::prec;
+    /// # use statrs::distribution::BinomialError;
     ///
-    /// let n = Binomial::new(0.5, 10).unwrap();
+    /// let n = Binomial::new(0.5, 10)?;
     /// assert!(prec::almost_eq(n.pmf(5), 0.24609375, 1e-15));
+    /// # Ok::<(), BinomialError>(())
     /// ```
     fn pmf(&self, x: K) -> T;
 
@@ -293,8 +304,11 @@ pub trait Discrete<K, T> {
     /// use statrs::distribution::{Discrete, Binomial};
     /// use statrs::prec;
     ///
-    /// let n = Binomial::new(0.5, 10).unwrap();
+    /// # use statrs::distribution::BinomialError;
+    ///
+    /// let n = Binomial::new(0.5, 10)?;
     /// assert!(prec::almost_eq(n.ln_pmf(5), (0.24609375f64).ln(), 1e-15));
+    /// # Ok::<(), BinomialError>(())
     /// ```
     fn ln_pmf(&self, x: K) -> T;
 }

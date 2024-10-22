@@ -10,12 +10,13 @@ use std::fmt::Debug;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Uniform, Continuous};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{Uniform, Continuous, UniformError};
+/// use statrs::statistics::*;
 ///
-/// let n = Uniform::new(0.0, 1.0).unwrap();
-/// assert_eq!(n.mean().unwrap(), 0.5);
+/// let n = Uniform::new(0.0, 1.0)?;
+/// assert_eq!(n.mean(), 0.5);
 /// assert_eq!(n.pdf(0.5), 1.0);
+/// # Ok::<(), UniformError>(())
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Uniform {

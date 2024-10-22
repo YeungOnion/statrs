@@ -24,14 +24,15 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{NegativeBinomial, Discrete};
-/// use statrs::statistics::DiscreteDistribution;
+/// use statrs::distribution::{NegativeBinomial, NegativeBinomialError, Discrete};
+/// use statrs::statistics::*;
 /// use statrs::prec::almost_eq;
 ///
-/// let r = NegativeBinomial::new(4.0, 0.5).unwrap();
-/// assert_eq!(r.mean().unwrap(), 4.0);
+/// let r = NegativeBinomial::new(4.0, 0.5)?;
+/// assert_eq!(r.mean(), 4.0);
 /// assert!(almost_eq(r.pmf(0), 0.0625, 1e-8));
 /// assert!(almost_eq(r.pmf(3), 0.15625, 1e-8));
+/// # Ok::<(), NegativeBinomialError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct NegativeBinomial {
@@ -104,10 +105,11 @@ impl NegativeBinomial {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::NegativeBinomial;
+    /// use statrs::distribution::{NegativeBinomial, NegativeBinomialError};
     ///
-    /// let r = NegativeBinomial::new(5.0, 0.5).unwrap();
+    /// let r = NegativeBinomial::new(5.0, 0.5)?;
     /// assert_eq!(r.p(), 0.5);
+    /// # Ok::<(), NegativeBinomialError>(())
     /// ```
     pub fn p(&self) -> f64 {
         self.p
@@ -119,10 +121,11 @@ impl NegativeBinomial {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::NegativeBinomial;
+    /// use statrs::distribution::{NegativeBinomial, NegativeBinomialError};
     ///
-    /// let r = NegativeBinomial::new(5.0, 0.5).unwrap();
+    /// let r = NegativeBinomial::new(5.0, 0.5)?;
     /// assert_eq!(r.r(), 5.0);
+    /// # Ok::<(), NegativeBinomialError>(())
     /// ```
     pub fn r(&self) -> f64 {
         self.r

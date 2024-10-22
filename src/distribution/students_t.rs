@@ -9,13 +9,14 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{StudentsT, Continuous};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{StudentsT, Continuous, StudentsTError};
+/// use statrs::statistics::*;
 /// use statrs::prec;
 ///
-/// let n = StudentsT::new(0.0, 1.0, 2.0).unwrap();
+/// let n = StudentsT::new(0.0, 1.0, 2.0)?;
 /// assert_eq!(n.mean().unwrap(), 0.0);
 /// assert!(prec::almost_eq(n.pdf(0.0), 0.353553390593274, 1e-15));
+/// # Ok::<(), StudentsTError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct StudentsT {
@@ -98,10 +99,11 @@ impl StudentsT {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::StudentsT;
+    /// use statrs::distribution::{StudentsT, StudentsTError};
     ///
-    /// let n = StudentsT::new(0.0, 1.0, 2.0).unwrap();
+    /// let n = StudentsT::new(0.0, 1.0, 2.0)?;
     /// assert_eq!(n.location(), 0.0);
+    /// # Ok::<(), StudentsTError>(())
     /// ```
     pub fn location(&self) -> f64 {
         self.location
@@ -112,10 +114,11 @@ impl StudentsT {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::StudentsT;
+    /// use statrs::distribution::{StudentsT, StudentsTError};
     ///
     /// let n = StudentsT::new(0.0, 1.0, 2.0).unwrap();
     /// assert_eq!(n.scale(), 1.0);
+    /// # Ok::<(), StudentsTError>(())
     /// ```
     pub fn scale(&self) -> f64 {
         self.scale
@@ -126,10 +129,11 @@ impl StudentsT {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::StudentsT;
+    /// use statrs::distribution::{StudentsT, StudentsTError};
     ///
     /// let n = StudentsT::new(0.0, 1.0, 2.0).unwrap();
     /// assert_eq!(n.freedom(), 2.0);
+    /// # Ok::<(), StudentsTError>(())
     /// ```
     pub fn freedom(&self) -> f64 {
         self.freedom

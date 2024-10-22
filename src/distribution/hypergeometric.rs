@@ -11,14 +11,15 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Hypergeometric, Discrete};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{Hypergeometric, Discrete, HypergeometricError};
+/// use statrs::statistics::*;
 /// use statrs::prec;
 ///
-/// let n = Hypergeometric::new(500, 50, 100).unwrap();
+/// let n = Hypergeometric::new(500, 50, 100)?;
 /// assert_eq!(n.mean().unwrap(), 10.);
 /// assert!(prec::almost_eq(n.pmf(10), 0.14736784, 1e-8));
 /// assert!(prec::almost_eq(n.pmf(25), 3.537e-7, 1e-10));
+/// # Ok::<(), HypergeometricError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Hypergeometric {
@@ -97,10 +98,11 @@ impl Hypergeometric {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Hypergeometric;
+    /// use statrs::distribution::{Hypergeometric, HypergeometricError};
     ///
-    /// let n = Hypergeometric::new(10, 5, 3).unwrap();
+    /// let n = Hypergeometric::new(10, 5, 3)?;
     /// assert_eq!(n.population(), 10);
+    /// # Ok::<(), HypergeometricError>(())
     /// ```
     pub fn population(&self) -> u64 {
         self.population
@@ -112,10 +114,11 @@ impl Hypergeometric {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Hypergeometric;
+    /// use statrs::distribution::{Hypergeometric, HypergeometricError};
     ///
-    /// let n = Hypergeometric::new(10, 5, 3).unwrap();
+    /// let n = Hypergeometric::new(10, 5, 3)?;
     /// assert_eq!(n.successes(), 5);
+    /// # Ok::<(), HypergeometricError>(())
     /// ```
     pub fn successes(&self) -> u64 {
         self.successes
@@ -127,10 +130,11 @@ impl Hypergeometric {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Hypergeometric;
+    /// use statrs::distribution::{Hypergeometric, HypergeometricError};
     ///
-    /// let n = Hypergeometric::new(10, 5, 3).unwrap();
+    /// let n = Hypergeometric::new(10, 5, 3)?;
     /// assert_eq!(n.draws(), 3);
+    /// # Ok::<(), HypergeometricError>(())
     /// ```
     pub fn draws(&self) -> u64 {
         self.draws

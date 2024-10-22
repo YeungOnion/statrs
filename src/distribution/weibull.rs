@@ -10,14 +10,15 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Weibull, Continuous};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{Weibull, Continuous, WeibullError};
+/// use statrs::statistics::*;
 /// use statrs::prec;
 ///
-/// let n = Weibull::new(10.0, 1.0).unwrap();
-/// assert!(prec::almost_eq(n.mean().unwrap(),
+/// let n = Weibull::new(10.0, 1.0)?;
+/// assert!(prec::almost_eq(n.mean(),
 /// 0.95135076986687318362924871772654021925505786260884, 1e-15));
 /// assert_eq!(n.pdf(1.0), 3.6787944117144232159552377016146086744581113103177);
+/// # Ok::<(), WeibullError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Weibull {
@@ -90,10 +91,11 @@ impl Weibull {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Weibull;
+    /// use statrs::distribution::{Weibull, WeibullError};
     ///
-    /// let n = Weibull::new(10.0, 1.0).unwrap();
+    /// let n = Weibull::new(10.0, 1.0)?;
     /// assert_eq!(n.shape(), 10.0);
+    /// # Ok::<(), WeibullError>(())
     /// ```
     pub fn shape(&self) -> f64 {
         self.shape
@@ -104,10 +106,11 @@ impl Weibull {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Weibull;
+    /// use statrs::distribution::{Weibull, WeibullError};
     ///
-    /// let n = Weibull::new(10.0, 1.0).unwrap();
+    /// let n = Weibull::new(10.0, 1.0)?;
     /// assert_eq!(n.scale(), 1.0);
+    /// # Ok::<(), WeibullError>(())
     /// ```
     pub fn scale(&self) -> f64 {
         self.scale

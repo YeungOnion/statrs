@@ -317,13 +317,13 @@ impl<D: AsMut<[f64]> + AsRef<[f64]>> StandardizedMoment<f64> for Data<D> {
     /// #[macro_use]
     /// extern crate statrs;
     ///
-    /// use statrs::statistics::Distribution;
+    /// use statrs::statistics::StandardizedMoment;
     /// use statrs::statistics::Data;
     ///
     /// # fn main() {
     /// let x = [];
     /// let x = Data::new(x);
-    /// assert!(x.mean().unwrap().is_nan());
+    /// assert!(x.mean().is_none());
     ///
     /// let y = [0.0, f64::NAN, 3.0, -2.0];
     /// let y = Data::new(y);
@@ -362,12 +362,12 @@ impl<D: AsMut<[f64]> + AsRef<[f64]>> StandardizedMoment<f64> for Data<D> {
     /// # Examples
     ///
     /// ```
-    /// use statrs::statistics::Distribution;
+    /// use statrs::statistics::StandardizedMoment;
     /// use statrs::statistics::Data;
     ///
     /// let x = [];
     /// let x = Data::new(x);
-    /// assert!(x.variance().unwrap().is_nan());
+    /// assert!(x.variance().is_none());
     ///
     /// let y = [0.0, f64::NAN, 3.0, -2.0];
     /// let y = Data::new(y);
@@ -378,19 +378,18 @@ impl<D: AsMut<[f64]> + AsRef<[f64]>> StandardizedMoment<f64> for Data<D> {
     /// assert_eq!(z.variance().unwrap(), 19.0 / 3.0);
     /// ```
     fn variance(&self) -> Option<f64> {
-        if self.0.as_ref().is_empty() {
-            return None;
-        }
+        // TODO: rewrite iterator statistics and rely on them instead
+        let mut iter = self.0.as_ref().iter().enumerate();
 
-        let mut sum = 0.0;
+        let mut sum = *iter.next()?.1;
         let mut variance = 0.0;
 
-        for (i, &x) in self.0.as_ref().iter().enumerate() {
+        for (i, &x) in iter {
             if x.is_nan() {
                 return Some(f64::NAN);
             }
-            sum += x;
             let diff = (i + 1) as f64 * x - sum;
+            sum += x;
             variance += diff * diff / (i * (i + 1)) as f64
         }
         Some(variance / (self.0.as_ref().len() - 1) as f64)

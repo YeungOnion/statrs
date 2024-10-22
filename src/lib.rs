@@ -19,27 +19,29 @@
 //! # Introspecting distributions
 //! Statrs also comes with a number of useful utility traits for more detailed introspection of distributions.
 //! ```
-//! use statrs::distribution::{Exp, Continuous, ContinuousCDF}; // `cdf` and `pdf`
-//! use statrs::statistics::Distribution; // statistical moments and entropy
+//! use statrs::distribution::{Exp, Continuous, ContinuousCDF, ExpError}; // `cdf` and `pdf`
+//! use statrs::statistics::*;
 //!
-//! let n = Exp::new(1.0).unwrap();
-//! assert_eq!(n.mean(), Some(1.0));
-//! assert_eq!(n.variance(), Some(1.0));
-//! assert_eq!(n.entropy(), Some(1.0));
-//! assert_eq!(n.skewness(), Some(2.0));
+//! let n = Exp::new(1.0)?;
+//! assert_eq!(n.mean(), 1.0);
+//! assert_eq!(n.variance(), 1.0);
+//! assert_eq!(n.entropy(), 1.0);
+//! assert_eq!(n.skewness(), 2.0);
 //! assert_eq!(n.cdf(1.0), 0.6321205588285576784045);
 //! assert_eq!(n.pdf(1.0), 0.3678794411714423215955);
+//! # Ok::<(), ExpError>(())
 //! ```
 //!
 //! # Utility functions
 //! as well as utility functions including `erf`, `gamma`, `ln_gamma`, `beta`, etc.
 //!
 //! ```
-//! use statrs::distribution::FisherSnedecor;
-//! use statrs::statistics::Distribution;
+//! use statrs::distribution::{FisherSnedecor, FisherSnedecorError};
+//! use statrs::statistics::*;
 //!
-//! let n = FisherSnedecor::new(1.0, 1.0).unwrap();
+//! let n = FisherSnedecor::new(1.0, 1.0)?;
 //! assert!(n.variance().is_none());
+//! # Ok::<(), FisherSnedecorError>(())
 //! ```
 //! ## Distributions implemented
 //! Statrs comes with a number of commonly used distributions including Normal, Gamma, Student's T, Exponential, Weibull, etc. view all implemented in `distributions` module.

@@ -76,14 +76,16 @@ where
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{MultivariateNormal, Continuous};
+/// use statrs::distribution::{MultivariateNormal, MultivariateNormalError, Continuous};
 /// use nalgebra::{matrix, vector};
-/// use statrs::statistics::{MeanN, VarianceN};
+/// use statrs::statistics::*;
 ///
-/// let mvn = MultivariateNormal::new_from_nalgebra(vector![0., 0.], matrix![1., 0.; 0., 1.]).unwrap();
-/// assert_eq!(mvn.mean().unwrap(), vector![0., 0.]);
-/// assert_eq!(mvn.variance().unwrap(), matrix![1., 0.; 0., 1.]);
+/// let mvn = MultivariateNormal::new_from_nalgebra(vector![0., 0.], matrix![1., 0.; 0.,
+/// 1.])?;
+/// assert_eq!(mvn.mean(), vector![0., 0.]);
+/// assert_eq!(mvn.variance(), matrix![1., 0.; 0., 1.]);
 /// assert_eq!(mvn.pdf(&vector![1.,  1.]), 0.05854983152431917);
+/// # Ok::<(), MultivariateNormalError>(())
 /// ```
 #[derive(Clone, PartialEq, Debug)]
 pub struct MultivariateNormal<D>

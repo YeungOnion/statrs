@@ -11,12 +11,13 @@ use std::f64;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Exp, Continuous};
-/// use statrs::statistics::Distribution;
+/// use statrs::distribution::{Exp, Continuous, ExpError};
+/// use statrs::statistics::*;
 ///
-/// let n = Exp::new(1.0).unwrap();
-/// assert_eq!(n.mean().unwrap(), 1.0);
+/// let n = Exp::new(1.0)?;
+/// assert_eq!(n.mean(), 1.0);
 /// assert_eq!(n.pdf(1.0), 0.3678794411714423215955);
+/// # Ok::<(), ExpError>(())
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Exp {
@@ -74,10 +75,11 @@ impl Exp {
     /// # Examples
     ///
     /// ```
-    /// use statrs::distribution::Exp;
+    /// use statrs::distribution::{Exp, ExpError};
     ///
-    /// let n = Exp::new(1.0).unwrap();
+    /// let n = Exp::new(1.0)?;
     /// assert_eq!(n.rate(), 1.0);
+    /// # Ok::<(), ExpError>(())
     /// ```
     pub fn rate(&self) -> f64 {
         self.rate
