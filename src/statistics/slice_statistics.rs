@@ -381,18 +381,29 @@ impl<D: AsMut<[f64]> + AsRef<[f64]>> StandardizedMoment<f64> for Data<D> {
         // TODO: rewrite iterator statistics and rely on them instead
         let mut iter = self.0.as_ref().iter().enumerate();
 
-        let mut sum = *iter.next()?.1;
-        let mut variance = 0.0;
+        // init single sample (mean=sample and M_2=0)
+        let mut n: f64 = 1.;
+        let mut mu = *iter.next()?.1;
+        let mut m2 = 0.0;
 
         for (i, &x) in iter {
             if x.is_nan() {
+                // fail early
                 return Some(f64::NAN);
             }
-            let diff = (i + 1) as f64 * x - sum;
-            sum += x;
-            variance += diff * diff / (i * (i + 1)) as f64
+            n = (i + 1) as f64;
+            let delta = x - mu;
+            mu += delta / n;
+            m2 += delta * (x - mu);
         }
-        Some(variance / (self.0.as_ref().len() - 1) as f64)
+
+        if n == 1. {
+            // no sample variance for a single sample
+            None
+        } else {
+            // normalize by bessel
+            Some(m2 / (n - 1.))
+        }
     }
 
     fn skewness(&self) -> Self::Skew {
