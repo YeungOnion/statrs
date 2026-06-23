@@ -61,3 +61,6 @@ pub mod generate;
 pub mod prec;
 pub mod statistics;
 pub mod stats_tests;
+
+#[cfg(feature = "experimental_api")]
+pub mod experimental_api;
