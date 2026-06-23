@@ -13,7 +13,7 @@ pub trait PartitionSpace: Sized {
     /// Extracts a representative point from a narrowed region.
     fn converge(self) -> Self::Point;
 
-    /// Converts a cut point (returned as `Found`) into the output `Point` type.
+    /// Converts a cut value into the `Point` type.
     fn point_from_cut(cut: Self::Cut) -> Self::Point;
 }
 
@@ -27,7 +27,7 @@ pub(crate) trait SearchOracle<C> {
     fn evaluate(&self, cut: &C) -> SearchDirection;
 }
 
-pub fn bisection_search<S, O>(
+pub(crate) fn bisection_search<S, O>(
     mut space: S,
     oracle: &O,
     max_iterations: usize,
@@ -198,5 +198,63 @@ mod tests {
     #[test]
     fn interval_u64_atomic_when_equal() {
         assert!(Interval { lo: 5u64, hi: 5u64 }.is_atomic());
+    }
+}
+
+use core::marker::PhantomData;
+use crate::experimental_api::types::Probability;
+use crate::experimental_api::traits::Cdf;
+
+pub(crate) struct CdfOracle<'a, D, K> {
+    dist: &'a D,
+    target: Probability,
+    epsilon: f64,
+    _k: PhantomData<K>,
+}
+
+impl<'a, D, K> CdfOracle<'a, D, K> {
+    pub(crate) fn new(dist: &'a D, target: Probability) -> Self {
+        Self { dist, target, epsilon: 1e-10, _k: PhantomData }
+    }
+}
+
+impl<D: Cdf<f64>> SearchOracle<f64> for CdfOracle<'_, D, f64> {
+    fn evaluate(&self, cut: &f64) -> SearchDirection {
+        match self.dist.cdf(*cut) {
+            Err(_) => SearchDirection::Right,
+            Ok(p) => {
+                let diff = p.into_inner() - self.target.into_inner();
+                if diff.abs() < self.epsilon {
+                    SearchDirection::Found
+                } else if diff > 0.0 {
+                    SearchDirection::Left
+                } else {
+                    SearchDirection::Right
+                }
+            }
+        }
+    }
+}
+
+impl<D: Cdf<u64>> SearchOracle<u64> for CdfOracle<'_, D, u64> {
+    fn evaluate(&self, cut: &u64) -> SearchDirection {
+        match self.dist.cdf(*cut) {
+            Err(_) => SearchDirection::Right,
+            Ok(p) if p >= self.target => {
+                // Check if this is the leftmost satisfying point.
+                // If cut == 0 or cdf(cut - 1) < target, we have found the minimum.
+                let prev_satisfies = cut
+                    .checked_sub(1)
+                    .and_then(|prev| self.dist.cdf(prev).ok())
+                    .map(|pp| pp >= self.target)
+                    .unwrap_or(false);
+                if prev_satisfies {
+                    SearchDirection::Left
+                } else {
+                    SearchDirection::Found
+                }
+            }
+            Ok(_) => SearchDirection::Right,
+        }
     }
 }
