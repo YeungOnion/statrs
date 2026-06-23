@@ -1,9 +1,9 @@
-use crate::experimental_api::bisect::{bisection_search, CdfOracle, PartitionSpace};
+use crate::experimental_api::bisect::{BisectDomain, PartitionSpace};
 use crate::experimental_api::types::{
     CdfError, InverseCdfError, Probability, ProbabilityDensity, ProbabilityMass,
 };
 
-pub const DEFAULT_MAX_ITER: usize = 64;
+pub use crate::experimental_api::bisect::DEFAULT_MAX_ITER;
 
 pub trait Cdf<K> {
     type Space: PartitionSpace<Point = K>;
@@ -23,13 +23,10 @@ pub trait Cdf<K> {
     fn inverse_cdf(&self, p: Probability) -> Result<K, InverseCdfError>
     where
         Self: Sized,
-        <Self::Space as PartitionSpace>::Cut: Copy,
-        for<'a> CdfOracle<'a, Self, K>: crate::experimental_api::bisect::SearchOracle<
-            <Self::Space as PartitionSpace>::Cut,
-        >,
+        K: BisectDomain,
+        Self::Space: PartitionSpace<Point = K, Cut = K>,
     {
-        bisection_search(self.cdf_domain(), &CdfOracle::new(self, p), DEFAULT_MAX_ITER)
-            .ok_or(InverseCdfError::NoConvergence)
+        K::run_bisect(self, p, self.cdf_domain()).ok_or(InverseCdfError::NoConvergence)
     }
 }
 
@@ -125,7 +122,10 @@ mod tests {
         for v in [0.1, 0.25, 0.5, 0.75, 0.9] {
             let p = Probability::new(v).unwrap();
             let x = d.inverse_cdf(p).unwrap();
-            assert!((x - v).abs() < 1e-6, "roundtrip failed for p={v}: got x={x}");
+            assert!(
+                (x - v).abs() < 1e-6,
+                "roundtrip failed for p={v}: got x={x}"
+            );
         }
     }
 

@@ -144,7 +144,10 @@ mod tests {
 
     #[test]
     fn bisect_u64_finds_integer_sqrt() {
-        let space = Interval { lo: 0u64, hi: 100u64 };
+        let space = Interval {
+            lo: 0u64,
+            hi: 100u64,
+        };
         let oracle = IntSqrtOracle { n: 25 };
         let result = bisection_search(space, &oracle, 64);
         assert_eq!(result, Some(5));
@@ -177,7 +180,10 @@ mod tests {
 
     #[test]
     fn bisect_f64_finds_threshold() {
-        let space = Interval { lo: 0.0f64, hi: 1.0f64 };
+        let space = Interval {
+            lo: 0.0f64,
+            hi: 1.0f64,
+        };
         let oracle = ThresholdOracle { threshold: 0.3 };
         let result = bisection_search(space, &oracle, 64).unwrap();
         assert!((result - 0.3).abs() < 1e-9);
@@ -185,7 +191,10 @@ mod tests {
 
     #[test]
     fn interval_f64_is_never_atomic() {
-        let space = Interval { lo: 0.0f64, hi: 1e-300f64 };
+        let space = Interval {
+            lo: 0.0f64,
+            hi: 1e-300f64,
+        };
         assert!(!space.is_atomic());
     }
 
@@ -201,9 +210,11 @@ mod tests {
     }
 }
 
-use core::marker::PhantomData;
-use crate::experimental_api::types::Probability;
 use crate::experimental_api::traits::Cdf;
+use crate::experimental_api::types::Probability;
+use core::marker::PhantomData;
+
+pub const DEFAULT_MAX_ITER: usize = 64;
 
 pub(crate) struct CdfOracle<'a, D, K> {
     dist: &'a D,
@@ -214,7 +225,12 @@ pub(crate) struct CdfOracle<'a, D, K> {
 
 impl<'a, D, K> CdfOracle<'a, D, K> {
     pub(crate) fn new(dist: &'a D, target: Probability) -> Self {
-        Self { dist, target, epsilon: 1e-10, _k: PhantomData }
+        Self {
+            dist,
+            target,
+            epsilon: 1e-10,
+            _k: PhantomData,
+        }
     }
 }
 
@@ -256,5 +272,43 @@ impl<D: Cdf<u64>> SearchOracle<u64> for CdfOracle<'_, D, u64> {
             }
             Ok(_) => SearchDirection::Right,
         }
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// Marker trait for domain types that have a built-in bisection strategy.
+
+pub trait BisectDomain: sealed::Sealed + Sized {
+    #[doc(hidden)]
+    fn run_bisect<D>(dist: &D, p: Probability, domain: D::Space) -> Option<Self>
+    where
+        D: Cdf<Self>,
+        D::Space: PartitionSpace<Point = Self, Cut = Self>;
+}
+
+impl sealed::Sealed for f64 {}
+impl BisectDomain for f64 {
+    fn run_bisect<D>(dist: &D, p: Probability, domain: D::Space) -> Option<f64>
+    where
+        D: Cdf<f64>,
+        D::Space: PartitionSpace<Point = f64, Cut = f64>,
+    {
+        let oracle = CdfOracle::<D, f64>::new(dist, p);
+        bisection_search(domain, &oracle, DEFAULT_MAX_ITER)
+    }
+}
+
+impl sealed::Sealed for u64 {}
+impl BisectDomain for u64 {
+    fn run_bisect<D>(dist: &D, p: Probability, domain: D::Space) -> Option<u64>
+    where
+        D: Cdf<u64>,
+        D::Space: PartitionSpace<Point = u64, Cut = u64>,
+    {
+        let oracle = CdfOracle::<D, u64>::new(dist, p);
+        bisection_search(domain, &oracle, DEFAULT_MAX_ITER)
     }
 }
