@@ -43,6 +43,10 @@ impl Probability {
         Ok(Self(f))
     }
 
+    pub fn complement(&self) -> Self {
+        return Self(1.0 - self.0);
+    }
+
     pub fn into_inner(self) -> f64 {
         self.0.into_inner()
     }
@@ -105,11 +109,7 @@ impl core::fmt::Debug for InvalidMass {
 }
 impl core::fmt::Display for InvalidMass {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "invalid probability mass: {}",
-            self.0
-        )
+        write!(f, "invalid probability mass: {}", self.0)
     }
 }
 

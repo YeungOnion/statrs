@@ -15,8 +15,7 @@ pub trait Cdf<K> {
     where
         K: Copy,
     {
-        let p = self.cdf(x)?.into_inner();
-        Probability::new(1.0 - p).map_err(|_| CdfError::InvalidInput)
+        self.cdf(x).map(|p| p.complement())
     }
 
     /// Inverse CDF via bisection. Override with a closed-form implementation where available.
