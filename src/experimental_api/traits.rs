@@ -1,3 +1,31 @@
+//! Trait definitions for CDF, PDF, PMF, and inverse CDF.
+//!
+//! All methods take [`Domain<Self>`][crate::experimental_api::Domain] rather than raw `f64`.
+//! Validation happens once at the call boundary via `TryFrom`; from there `?` propagates
+//! errors and the trait methods themselves are infallible or return only convergence errors.
+//!
+//! ```
+//! # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
+//! # struct MyDist;
+//! # impl HasSupport for MyDist {
+//! #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+//! # }
+//! # impl Cdf for MyDist {
+//! #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+//! # }
+//! # impl InverseCdf for MyDist {
+//! #     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
+//! # }
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let d = MyDist;
+//! let x: Domain<_> = 0.6_f64.try_into()?; // validate at the boundary
+//! let p = d.cdf(x);                         // infallible
+//! let x2 = d.inverse_cdf(p)?;              // Domain<MyDist> — passes directly back to cdf
+//! let _ = d.cdf(x2);
+//! # Ok(())
+//! # }
+//! ```
+
 use crate::experimental_api::bisect::{
     DEFAULT_MAX_ITER, Interval, SearchDirection, SearchOracle, bisection_search,
 };
@@ -29,149 +57,15 @@ pub trait Pmf: HasSupport + Sized {
 
 /// CDF for distributions whose support is encoded in the type.
 ///
-/// `x: Domain<Self>` carries a static proof that the value is in-support, so
-/// the return is infallible. `Domain<_>` is inferred from the call site:
-///
-/// ```
-/// # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
-/// # struct UnitInterval;
-/// # impl HasSupport for UnitInterval {
-/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
-/// # }
-/// # impl Cdf for UnitInterval {
-/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
-/// # }
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let d = UnitInterval;
-/// let x: Domain<_> = 0.5_f64.try_into()?;
-/// assert_eq!(d.cdf(x).into_inner(), 0.5);
-/// # Ok(())
-/// # }
-/// ```
-///
-/// `Probability` composes directly with `InverseCdf::inverse_cdf`:
-///
-/// ```
-/// # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
-/// # struct UnitInterval;
-/// # impl HasSupport for UnitInterval {
-/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
-/// # }
-/// # impl Cdf for UnitInterval {
-/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
-/// # }
-/// # impl InverseCdf for UnitInterval {
-/// #     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
-/// # }
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let d = UnitInterval;
-/// let x = 0.7_f64.try_into()?;
-/// let rt = d.inverse_cdf(d.cdf(x))?;
-/// assert!((rt.into_inner() - 0.7).abs() < 1e-6);
-/// # Ok(())
-/// # }
-/// ```
-///
-/// Raw `f64` is rejected at compile time:
-///
-/// ```compile_fail
-/// # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
-/// # struct UnitInterval;
-/// # impl HasSupport for UnitInterval {
-/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
-/// # }
-/// # impl Cdf for UnitInterval {
-/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
-/// # }
-/// UnitInterval.cdf(0.5_f64);
-/// ```
-///
-/// So is a domain value from a different distribution:
-///
-/// ```compile_fail
-/// # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
-/// # struct UnitInterval;
-/// # impl HasSupport for UnitInterval {
-/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
-/// # }
-/// # impl Cdf for UnitInterval {
-/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
-/// # }
-/// # struct Other;
-/// # impl HasSupport for Other { fn contains(x: f64) -> bool { x.is_finite() } }
-/// let x: Domain<Other> = 0.5_f64.try_into().unwrap();
-/// UnitInterval.cdf(x);
-/// ```
+/// The return is infallible: `Domain<Self>` is proof the input is in-support.
 pub trait Cdf: HasSupport + Sized {
     fn cdf(&self, x: Domain<Self>) -> Probability;
 }
 
 /// Inverse CDF extending [`Cdf`].
 ///
-/// Implement `bisect_interval` to get a bisection-based `inverse_cdf` by default,
+/// Implement `bisect_interval` for a default bisection-based `inverse_cdf`,
 /// or override it with a closed-form solution.
-///
-/// ```
-/// # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
-/// # struct UnitInterval;
-/// # impl HasSupport for UnitInterval {
-/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
-/// # }
-/// # impl Cdf for UnitInterval {
-/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
-/// # }
-/// impl InverseCdf for UnitInterval {
-///     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
-/// }
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let d = UnitInterval;
-/// let p: Probability = 0.3_f64.try_into()?;
-/// let x = d.inverse_cdf(p)?;
-/// assert!((d.cdf(x).into_inner() - 0.3).abs() < 1e-6);
-/// # Ok(())
-/// # }
-/// ```
-///
-/// The return type is `Domain<Self>`, so it feeds directly back into `cdf`:
-///
-/// ```
-/// # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
-/// # struct UnitInterval;
-/// # impl HasSupport for UnitInterval {
-/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
-/// # }
-/// # impl Cdf for UnitInterval {
-/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
-/// # }
-/// # impl InverseCdf for UnitInterval {
-/// #     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
-/// # }
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let d = UnitInterval;
-/// let p: Probability = 0.5_f64.try_into()?;
-/// let x: Domain<UnitInterval> = d.inverse_cdf(p)?;
-/// let _: Probability = d.cdf(x);
-/// # Ok(())
-/// # }
-/// ```
-///
-/// Raw `f64` is rejected at compile time:
-///
-/// ```compile_fail
-/// # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
-/// # struct UnitInterval;
-/// # impl HasSupport for UnitInterval {
-/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
-/// # }
-/// # impl Cdf for UnitInterval {
-/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
-/// # }
-/// # impl InverseCdf for UnitInterval {
-/// #     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
-/// # }
-/// UnitInterval.inverse_cdf(0.5_f64);
-/// ```
 pub trait InverseCdf: Cdf {
     /// Search interval for the default bisection. Must be a subset of the support.
     ///

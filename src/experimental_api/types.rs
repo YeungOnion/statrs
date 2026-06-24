@@ -1,3 +1,29 @@
+//! Validated newtypes for probability values and distribution domains.
+//!
+//! [`Domain<D>`] ties a validated `f64` to a specific distribution via a phantom type
+//! parameter. Validate once at the boundary with `TryFrom`; after that the compiler
+//! enforces both that raw `f64` can't slip through and that values from one distribution
+//! can't be passed to another's methods.
+//!
+//! ```compile_fail
+//! # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
+//! # struct A;
+//! # impl HasSupport for A { fn contains(x: f64) -> bool { x.is_finite() } }
+//! # impl Cdf for A { fn cdf(&self, x: Domain<Self>) -> Probability { todo!() } }
+//! A.cdf(0.5_f64); // expected Domain<A>, found f64
+//! ```
+//!
+//! ```compile_fail
+//! # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
+//! # struct A;
+//! # impl HasSupport for A { fn contains(x: f64) -> bool { x.is_finite() } }
+//! # impl Cdf for A { fn cdf(&self, x: Domain<Self>) -> Probability { todo!() } }
+//! # struct B;
+//! # impl HasSupport for B { fn contains(x: f64) -> bool { x.is_finite() } }
+//! let x: Domain<B> = 0.5_f64.try_into().unwrap();
+//! A.cdf(x); // Domain<B> is not Domain<A>
+//! ```
+
 use core::marker::PhantomData;
 use decorum::R64;
 
