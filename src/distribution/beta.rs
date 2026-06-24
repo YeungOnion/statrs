@@ -385,6 +385,21 @@ impl Continuous<f64, f64> for Beta {
     }
 }
 
+#[cfg(feature = "experimental_api")]
+impl crate::experimental_api::HasSupport for Beta {
+    fn contains(x: f64) -> bool {
+        x.is_finite() && (0.0..=1.0).contains(&x)
+    }
+}
+
+#[cfg(feature = "experimental_api")]
+impl crate::experimental_api::Cdf for Beta {
+    fn cdf(&self, x: crate::experimental_api::Domain<Self>) -> crate::experimental_api::Probability {
+        crate::experimental_api::Probability::new(ContinuousCDF::cdf(self, x.into_inner()))
+            .expect("Beta CDF is always in [0, 1]")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

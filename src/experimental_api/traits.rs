@@ -25,6 +25,26 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! The existing distributions delegate to their current implementations, so both APIs
+//! agree on values. Here `Beta` shows the contrast — the old CDF takes raw `f64` and
+//! can panic; the new one takes a validated `Domain<Beta>` and is infallible:
+//!
+//! ```
+//! # use statrs::distribution::{Beta, ContinuousCDF};
+//! # use statrs::experimental_api::{Cdf, Domain};
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let dist = Beta::new(2.0, 5.0)?;
+//! let raw = 0.3_f64;
+//!
+//! let old: f64 = ContinuousCDF::cdf(&dist, raw);       // accepts f64, can panic
+//! let x: Domain<Beta> = raw.try_into()?;
+//! let new: f64 = Cdf::cdf(&dist, x).into_inner();      // accepts Domain<Beta>, infallible
+//!
+//! assert!((old - new).abs() < f64::EPSILON);
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::experimental_api::bisect::{
     DEFAULT_MAX_ITER, Interval, SearchDirection, SearchOracle, bisection_search,
