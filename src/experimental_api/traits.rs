@@ -1,182 +1,382 @@
-use crate::experimental_api::bisect::{BisectDomain, PartitionSpace};
+use crate::experimental_api::bisect::{
+    DEFAULT_MAX_ITER, Interval, SearchDirection, SearchOracle, bisection_search,
+};
 use crate::experimental_api::types::{
-    CdfError, InverseCdfError, Probability, ProbabilityDensity, ProbabilityMass,
+    Domain, HasSupport, InverseCdfError, Probability, ProbabilityDensity, ProbabilityMass,
 };
 
-pub use crate::experimental_api::bisect::DEFAULT_MAX_ITER;
+/// PDF for distributions whose support is encoded in the type.
+///
+/// `ln_pdf` has a default implementation via `pdf`.
+pub trait Pdf: HasSupport + Sized {
+    fn pdf(&self, x: Domain<Self>) -> ProbabilityDensity;
 
-pub trait Cdf<K> {
-    type Space: PartitionSpace<Point = K>;
-
-    fn cdf(&self, x: K) -> Result<Probability, CdfError>;
-    fn cdf_domain(&self) -> Self::Space;
-
-    fn sf(&self, x: K) -> Result<Probability, CdfError>
-    where
-        K: Copy,
-    {
-        self.cdf(x).map(|p| p.complement())
-    }
-
-    /// Inverse CDF via bisection. Override with a closed-form implementation where available.
-    fn inverse_cdf(&self, p: Probability) -> Result<K, InverseCdfError>
-    where
-        Self: Sized,
-        K: BisectDomain,
-        Self::Space: PartitionSpace<Point = K, Cut = K>,
-    {
-        K::run_bisect(self, p, self.cdf_domain()).ok_or(InverseCdfError::NoConvergence)
+    fn ln_pdf(&self, x: Domain<Self>) -> f64 {
+        self.pdf(x).into_inner().ln()
     }
 }
 
-pub trait Pdf<K> {
-    fn pdf(&self, x: K) -> Result<ProbabilityDensity, CdfError>;
-    fn ln_pdf(&self, x: K) -> Result<f64, CdfError>;
+/// PMF for distributions whose support is encoded in the type.
+///
+/// `ln_pmf` has a default implementation via `pmf`.
+pub trait Pmf: HasSupport + Sized {
+    fn pmf(&self, x: Domain<Self>) -> ProbabilityMass;
+
+    fn ln_pmf(&self, x: Domain<Self>) -> f64 {
+        self.pmf(x).into_inner().ln()
+    }
 }
 
-pub trait Pmf<K> {
-    fn pmf(&self, x: K) -> Result<ProbabilityMass, CdfError>;
-    fn ln_pmf(&self, x: K) -> Result<f64, CdfError>;
+/// CDF for distributions whose support is encoded in the type.
+///
+/// `x: Domain<Self>` carries a static proof that the value is in-support, so
+/// the return is infallible. `Domain<_>` is inferred from the call site:
+///
+/// ```
+/// # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
+/// # struct UnitInterval;
+/// # impl HasSupport for UnitInterval {
+/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+/// # }
+/// # impl Cdf for UnitInterval {
+/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+/// # }
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let d = UnitInterval;
+/// let x: Domain<_> = 0.5_f64.try_into()?;
+/// assert_eq!(d.cdf(x).into_inner(), 0.5);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// `Probability` composes directly with `InverseCdf::inverse_cdf`:
+///
+/// ```
+/// # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
+/// # struct UnitInterval;
+/// # impl HasSupport for UnitInterval {
+/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+/// # }
+/// # impl Cdf for UnitInterval {
+/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+/// # }
+/// # impl InverseCdf for UnitInterval {
+/// #     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
+/// # }
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let d = UnitInterval;
+/// let x = 0.7_f64.try_into()?;
+/// let rt = d.inverse_cdf(d.cdf(x))?;
+/// assert!((rt.into_inner() - 0.7).abs() < 1e-6);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Raw `f64` is rejected at compile time:
+///
+/// ```compile_fail
+/// # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
+/// # struct UnitInterval;
+/// # impl HasSupport for UnitInterval {
+/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+/// # }
+/// # impl Cdf for UnitInterval {
+/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+/// # }
+/// UnitInterval.cdf(0.5_f64);
+/// ```
+///
+/// So is a domain value from a different distribution:
+///
+/// ```compile_fail
+/// # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
+/// # struct UnitInterval;
+/// # impl HasSupport for UnitInterval {
+/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+/// # }
+/// # impl Cdf for UnitInterval {
+/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+/// # }
+/// # struct Other;
+/// # impl HasSupport for Other { fn contains(x: f64) -> bool { x.is_finite() } }
+/// let x: Domain<Other> = 0.5_f64.try_into().unwrap();
+/// UnitInterval.cdf(x);
+/// ```
+pub trait Cdf: HasSupport + Sized {
+    fn cdf(&self, x: Domain<Self>) -> Probability;
+}
+
+/// Inverse CDF extending [`Cdf`].
+///
+/// Implement `bisect_interval` to get a bisection-based `inverse_cdf` by default,
+/// or override it with a closed-form solution.
+///
+/// ```
+/// # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
+/// # struct UnitInterval;
+/// # impl HasSupport for UnitInterval {
+/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+/// # }
+/// # impl Cdf for UnitInterval {
+/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+/// # }
+/// impl InverseCdf for UnitInterval {
+///     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
+/// }
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let d = UnitInterval;
+/// let p: Probability = 0.3_f64.try_into()?;
+/// let x = d.inverse_cdf(p)?;
+/// assert!((d.cdf(x).into_inner() - 0.3).abs() < 1e-6);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// The return type is `Domain<Self>`, so it feeds directly back into `cdf`:
+///
+/// ```
+/// # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
+/// # struct UnitInterval;
+/// # impl HasSupport for UnitInterval {
+/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+/// # }
+/// # impl Cdf for UnitInterval {
+/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+/// # }
+/// # impl InverseCdf for UnitInterval {
+/// #     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
+/// # }
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let d = UnitInterval;
+/// let p: Probability = 0.5_f64.try_into()?;
+/// let x: Domain<UnitInterval> = d.inverse_cdf(p)?;
+/// let _: Probability = d.cdf(x);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Raw `f64` is rejected at compile time:
+///
+/// ```compile_fail
+/// # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
+/// # struct UnitInterval;
+/// # impl HasSupport for UnitInterval {
+/// #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+/// # }
+/// # impl Cdf for UnitInterval {
+/// #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+/// # }
+/// # impl InverseCdf for UnitInterval {
+/// #     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
+/// # }
+/// UnitInterval.inverse_cdf(0.5_f64);
+/// ```
+pub trait InverseCdf: Cdf {
+    /// Search interval for the default bisection. Must be a subset of the support.
+    ///
+    /// For half-open upper bounds (e.g. `[1, 2)`) use the open endpoint as `hi` —
+    /// bisection never lands exactly there, and `Domain::try_from` rejects it if it does.
+    fn bisect_interval(&self) -> Interval<f64>;
+
+    fn inverse_cdf(&self, p: Probability) -> Result<Domain<Self>, InverseCdfError> {
+        let oracle = BisectOracle {
+            dist: self,
+            target: p,
+        };
+        bisection_search(self.bisect_interval(), &oracle, DEFAULT_MAX_ITER)
+            .and_then(|x| Domain::try_from(x).ok())
+            .ok_or(InverseCdfError::NoConvergence)
+    }
+}
+
+struct BisectOracle<'a, D> {
+    dist: &'a D,
+    target: Probability,
+}
+
+impl<D: Cdf> SearchOracle<f64> for BisectOracle<'_, D> {
+    fn evaluate(&self, cut: &f64) -> SearchDirection {
+        let Ok(x) = Domain::try_from(*cut) else {
+            return SearchDirection::Right;
+        };
+        let diff = self.dist.cdf(x).into_inner() - self.target.into_inner();
+        if diff.abs() < 1e-10 {
+            SearchDirection::Found
+        } else if diff > 0.0 {
+            SearchDirection::Left
+        } else {
+            SearchDirection::Right
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::experimental_api::bisect::Interval;
     use crate::experimental_api::types::{
-        CdfError, Probability, ProbabilityDensity, ProbabilityMass,
+        InvalidDomain, Probability, ProbabilityDensity, ProbabilityMass,
     };
 
-    // Uniform distribution on [0.0, 1.0]: cdf(x) = clamp(x, 0, 1)
+    struct Uniform12;
+
+    impl HasSupport for Uniform12 {
+        fn contains(x: f64) -> bool {
+            x.is_finite() && x >= 1.0 && x < 2.0
+        }
+    }
+
+    impl Cdf for Uniform12 {
+        fn cdf(&self, x: Domain<Self>) -> Probability {
+            Probability::new(x.into_inner() - 1.0).expect("x - 1 ∈ [0,1) for x ∈ [1,2)")
+        }
+    }
+
+    impl InverseCdf for Uniform12 {
+        fn bisect_interval(&self) -> Interval<f64> {
+            Interval { lo: 1.0, hi: 2.0 }
+        }
+
+        fn inverse_cdf(&self, p: Probability) -> Result<Domain<Self>, InverseCdfError> {
+            (p.into_inner() + 1.0)
+                .try_into()
+                .map_err(|_: InvalidDomain| InverseCdfError::OutOfSupport)
+        }
+    }
+
+    // Continuous uniform on [0, 1].
     struct UnitUniform;
-
-    impl Cdf<f64> for UnitUniform {
-        type Space = Interval<f64>;
-
-        fn cdf(&self, x: f64) -> Result<Probability, CdfError> {
-            let p = x.clamp(0.0, 1.0);
-            Probability::new(p).map_err(|_| CdfError::InvalidInput)
+    impl HasSupport for UnitUniform {
+        fn contains(x: f64) -> bool {
+            x.is_finite() && (0.0..=1.0).contains(&x)
         }
-
-        fn cdf_domain(&self) -> Interval<f64> {
-            Interval { lo: 0.0, hi: 1.0 }
+    }
+    impl Pdf for UnitUniform {
+        fn pdf(&self, _x: Domain<Self>) -> ProbabilityDensity {
+            ProbabilityDensity::new(1.0).unwrap()
         }
     }
 
-    impl Pdf<f64> for UnitUniform {
-        fn pdf(&self, x: f64) -> Result<ProbabilityDensity, CdfError> {
-            let d = if (0.0..=1.0).contains(&x) { 1.0 } else { 0.0 };
-            ProbabilityDensity::new(d).map_err(|_| CdfError::InvalidInput)
-        }
-
-        fn ln_pdf(&self, x: f64) -> Result<f64, CdfError> {
-            Ok(self.pdf(x)?.into_inner().ln())
-        }
-    }
-
-    // Discrete uniform on {0, 1, ..., 9}: cdf(k) = (k + 1) / 10
+    // Discrete uniform on {0, 1, ..., 9}.
     struct TenPoint;
-
-    impl Cdf<u64> for TenPoint {
-        type Space = Interval<u64>;
-
-        fn cdf(&self, x: u64) -> Result<Probability, CdfError> {
-            let p = (x + 1).min(10) as f64 / 10.0;
-            Probability::new(p).map_err(|_| CdfError::InvalidInput)
-        }
-
-        fn cdf_domain(&self) -> Interval<u64> {
-            Interval { lo: 0, hi: 10 }
+    impl HasSupport for TenPoint {
+        fn contains(x: f64) -> bool {
+            x.is_finite() && x >= 0.0 && x <= 9.0 && x.fract() == 0.0
         }
     }
-
-    impl Pmf<u64> for TenPoint {
-        fn pmf(&self, _x: u64) -> Result<ProbabilityMass, CdfError> {
-            ProbabilityMass::new(0.1).map_err(|_| CdfError::InvalidInput)
-        }
-
-        fn ln_pmf(&self, x: u64) -> Result<f64, CdfError> {
-            Ok(self.pmf(x)?.into_inner().ln())
+    impl Pmf for TenPoint {
+        fn pmf(&self, _x: Domain<Self>) -> ProbabilityMass {
+            ProbabilityMass::new(0.1).unwrap()
         }
     }
 
     #[test]
-    fn cdf_evaluates_correctly() {
+    fn pdf_unit_uniform_is_one() {
         let d = UnitUniform;
-        let p = d.cdf(0.5).unwrap();
-        assert!((p.into_inner() - 0.5).abs() < 1e-12);
+        let x: Domain<_> = 0.5_f64.try_into().unwrap();
+        assert_eq!(d.pdf(x).into_inner(), 1.0);
     }
 
     #[test]
-    fn sf_is_complement_of_cdf() {
+    fn ln_pdf_default_impl() {
         let d = UnitUniform;
-        let cdf = d.cdf(0.3).unwrap().into_inner();
-        let sf = d.sf(0.3).unwrap().into_inner();
-        assert!((cdf + sf - 1.0).abs() < 1e-12);
+        let x: Domain<_> = 0.5_f64.try_into().unwrap();
+        assert!((d.ln_pdf(x) - 0.0_f64).abs() < 1e-12);
     }
 
     #[test]
-    fn inverse_cdf_roundtrips_continuous() {
-        let d = UnitUniform;
-        for v in [0.1, 0.25, 0.5, 0.75, 0.9] {
-            let p = Probability::new(v).unwrap();
-            let x = d.inverse_cdf(p).unwrap();
-            assert!(
-                (x - v).abs() < 1e-6,
-                "roundtrip failed for p={v}: got x={x}"
-            );
-        }
+    fn pdf_rejects_out_of_support() {
+        let r: Result<Domain<UnitUniform>, _> = 1.5_f64.try_into();
+        assert!(r.is_err());
     }
 
     #[test]
-    fn inverse_cdf_roundtrips_discrete() {
+    fn pmf_ten_point_is_one_tenth() {
         let d = TenPoint;
-        // cdf(k) = (k+1)/10, so inverse_cdf(0.35) should give k=3 (cdf(3)=0.4 >= 0.35)
-        let p = Probability::new(0.35).unwrap();
-        let k = d.inverse_cdf(p).unwrap();
-        assert_eq!(k, 3);
+        let x: Domain<_> = 3.0_f64.try_into().unwrap();
+        assert!((d.pmf(x).into_inner() - 0.1).abs() < 1e-12);
     }
 
     #[test]
-    fn pdf_returns_density() {
-        let d = UnitUniform;
-        let density = d.pdf(0.5).unwrap().into_inner();
-        assert!((density - 1.0).abs() < 1e-12);
-    }
-
-    #[test]
-    fn pmf_returns_mass() {
+    fn ln_pmf_default_impl() {
         let d = TenPoint;
-        let mass = d.pmf(3).unwrap().into_inner();
-        assert!((mass - 0.1).abs() < 1e-12);
+        let x: Domain<_> = 7.0_f64.try_into().unwrap();
+        assert!((d.ln_pmf(x) - 0.1_f64.ln()).abs() < 1e-12);
     }
 
     #[test]
-    fn pdf_outside_support_is_zero() {
-        let d = UnitUniform;
-        assert_eq!(d.pdf(-1.0).unwrap().into_inner(), 0.0);
-        assert_eq!(d.pdf(2.0).unwrap().into_inner(), 0.0);
+    fn pmf_rejects_non_integer() {
+        let r: Result<Domain<TenPoint>, _> = 2.5_f64.try_into();
+        assert!(r.is_err());
     }
 
     #[test]
-    fn inverse_cdf_boundary_probabilities_continuous() {
-        let d = UnitUniform;
-        let p0 = Probability::new(0.0).unwrap();
-        let p1 = Probability::new(1.0).unwrap();
-        let x0 = d.inverse_cdf(p0).unwrap();
-        let x1 = d.inverse_cdf(p1).unwrap();
-        assert!(x0 <= 0.0 + 1e-6, "p=0 should give x near 0, got {x0}");
-        assert!(x1 >= 1.0 - 1e-6, "p=1 should give x near 1, got {x1}");
+    fn cdf_midpoint() {
+        let d = Uniform12;
+        let x: Domain<_> = 1.5_f64.try_into().unwrap();
+        assert_eq!(d.cdf(x).into_inner(), 0.5);
     }
 
     #[test]
-    fn inverse_cdf_boundary_probabilities_discrete() {
-        let d = TenPoint;
-        // p=0.0: cdf(0) = 0.1 >= 0.0, so leftmost satisfying k = 0
-        let p0 = Probability::new(0.0).unwrap();
-        assert_eq!(d.inverse_cdf(p0).unwrap(), 0u64);
-        // p=1.0: cdf(9) = 1.0 >= 1.0, so leftmost satisfying k = 9
-        let p1 = Probability::new(1.0).unwrap();
-        assert_eq!(d.inverse_cdf(p1).unwrap(), 9u64);
+    fn cdf_lower_boundary() {
+        let x: Domain<Uniform12> = 1.0_f64.try_into().unwrap();
+        assert_eq!(Uniform12.cdf(x).into_inner(), 0.0);
+    }
+
+    #[test]
+    fn inverse_cdf_closed_form_roundtrip() {
+        let d = Uniform12;
+        let p = Probability::new(0.3).unwrap();
+        let x = d.inverse_cdf(p).unwrap();
+        assert!((d.cdf(x).into_inner() - 0.3).abs() < 1e-12);
+    }
+
+    #[test]
+    fn inverse_cdf_bisection_roundtrip() {
+        struct Uniform12Bisect;
+        impl HasSupport for Uniform12Bisect {
+            fn contains(x: f64) -> bool {
+                x.is_finite() && x >= 1.0 && x < 2.0
+            }
+        }
+        impl Cdf for Uniform12Bisect {
+            fn cdf(&self, x: Domain<Self>) -> Probability {
+                Probability::new(x.into_inner() - 1.0).unwrap()
+            }
+        }
+        impl InverseCdf for Uniform12Bisect {
+            fn bisect_interval(&self) -> Interval<f64> {
+                Interval { lo: 1.0, hi: 2.0 }
+            }
+        }
+
+        let d = Uniform12Bisect;
+        let p = Probability::new(0.3).unwrap();
+        let x = d.inverse_cdf(p).unwrap();
+        assert!((d.cdf(x).into_inner() - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn inverse_cdf_rejects_p1() {
+        let p = Probability::new(1.0).unwrap();
+        assert!(Uniform12.inverse_cdf(p).is_err());
+    }
+
+    #[test]
+    fn domain_rejects_out_of_support() {
+        let r: Result<Domain<Uniform12>, _> = 0.5_f64.try_into();
+        assert!(r.is_err());
+        let r: Result<Domain<Uniform12>, _> = 2.0_f64.try_into();
+        assert!(r.is_err());
+        let r: Result<Domain<Uniform12>, _> = f64::NAN.try_into();
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn domain_accepts_lower_rejects_upper_bound() {
+        let lo: Result<Domain<Uniform12>, _> = 1.0_f64.try_into();
+        assert!(lo.is_ok());
+        let hi: Result<Domain<Uniform12>, _> = 2.0_f64.try_into();
+        assert!(hi.is_err());
     }
 }

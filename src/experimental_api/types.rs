@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use decorum::R64;
 
 /// A probability value in `[0.0, 1.0]`, guaranteed finite.
@@ -30,8 +31,11 @@ pub enum CdfError {
 /// Error returned by inverse-CDF computations.
 #[non_exhaustive]
 pub enum InverseCdfError {
-    /// Closed-form `inverse_cdf` override could not locate the target.
+    /// Used for search failures where inverse_cdf is not closed form.
     NoConvergence,
+    /// The exact inverse maps to a point outside the distribution's support
+    /// (e.g. `p = 1.0` for a half-open upper bound).
+    OutOfSupport,
 }
 
 impl Probability {
@@ -44,7 +48,7 @@ impl Probability {
     }
 
     pub fn complement(&self) -> Self {
-        return Self(1.0 - self.0);
+        Self(1.0 - self.0)
     }
 
     pub fn into_inner(self) -> f64 {
@@ -132,13 +136,17 @@ impl core::fmt::Debug for InverseCdfError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             InverseCdfError::NoConvergence => write!(f, "InverseCdfError::NoConvergence"),
+            InverseCdfError::OutOfSupport => write!(f, "InverseCdfError::OutOfSupport"),
         }
     }
 }
 impl core::fmt::Display for InverseCdfError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            InverseCdfError::NoConvergence => write!(f, "inverse_cdf bisection did not converge"),
+            InverseCdfError::NoConvergence => write!(f, "inverse_cdf search did not converge"),
+            InverseCdfError::OutOfSupport => {
+                write!(f, "inverse_cdf result falls outside the support")
+            }
         }
     }
 }
@@ -153,6 +161,75 @@ impl std::error::Error for InvalidMass {}
 impl std::error::Error for CdfError {}
 #[cfg(feature = "std")]
 impl std::error::Error for InverseCdfError {}
+
+// ---- Domain validation ----
+
+/// Static support membership for distributions whose bounds are type-level constants.
+pub trait HasSupport {
+    fn contains(x: f64) -> bool;
+}
+
+/// A value known to lie within distribution `D`'s support.
+///
+/// Construct via `f64::try_into::<Domain<D>>()` or `Domain::try_from(x)`.
+pub struct Domain<D>(f64, PhantomData<D>);
+
+impl<D> Domain<D> {
+    pub fn into_inner(self) -> f64 {
+        self.0
+    }
+}
+
+impl<D> Copy for Domain<D> {}
+impl<D> Clone for Domain<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<D> PartialEq for Domain<D> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl<D> core::fmt::Debug for Domain<D> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("Domain").field(&self.0).finish()
+    }
+}
+
+/// Error returned when a value falls outside a distribution's support.
+pub struct InvalidDomain(pub f64);
+
+impl core::fmt::Debug for InvalidDomain {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "InvalidDomain({})", self.0)
+    }
+}
+impl core::fmt::Display for InvalidDomain {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "value {} is outside the distribution's support", self.0)
+    }
+}
+#[cfg(feature = "std")]
+impl std::error::Error for InvalidDomain {}
+
+impl<D: HasSupport> TryFrom<f64> for Domain<D> {
+    type Error = InvalidDomain;
+    fn try_from(x: f64) -> Result<Self, Self::Error> {
+        if D::contains(x) {
+            Ok(Self(x, PhantomData))
+        } else {
+            Err(InvalidDomain(x))
+        }
+    }
+}
+
+impl TryFrom<f64> for Probability {
+    type Error = InvalidProbability;
+    fn try_from(v: f64) -> Result<Self, Self::Error> {
+        Self::new(v)
+    }
+}
 
 #[cfg(test)]
 mod tests {
