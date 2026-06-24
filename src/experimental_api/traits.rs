@@ -5,16 +5,17 @@
 //! errors and the trait methods themselves are infallible or return only convergence errors.
 //!
 //! ```
-//! # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability, Interval};
+//! # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability};
 //! # struct MyDist;
 //! # impl HasSupport for MyDist {
+//! #     type Bound = f64;
 //! #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
 //! # }
 //! # impl Cdf for MyDist {
 //! #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
 //! # }
 //! # impl InverseCdf for MyDist {
-//! #     fn bisect_interval(&self) -> Interval<f64> { Interval { lo: 0.0, hi: 1.0 } }
+//! #     fn search_bounds(&self) -> (f64, f64) { (0.0, 1.0) }
 //! # }
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let d = MyDist;
@@ -47,7 +48,7 @@
 //! ```
 
 use crate::experimental_api::bisect::{
-    DEFAULT_MAX_ITER, Interval, SearchDirection, SearchOracle, bisection_search,
+    bisection_search, Interval, SearchDirection, DEFAULT_MAX_ITER,
 };
 use crate::experimental_api::types::{
     Domain, HasSupport, InverseCdfError, Probability, ProbabilityDensity, ProbabilityMass,
@@ -84,44 +85,38 @@ pub trait Cdf: HasSupport + Sized {
 
 /// Inverse CDF extending [`Cdf`].
 ///
-/// Implement `bisect_interval` for a default bisection-based `inverse_cdf`,
-/// or override it with a closed-form solution.
+/// Implement `search_bounds` to get a bisection-based `inverse_cdf` by default,
+/// or override it with a closed-form solution. Distributions whose search space
+/// is not a scalar interval (e.g. Dirichlet) should override `inverse_cdf` directly
+/// and leave `search_bounds` unreachable.
 pub trait InverseCdf: Cdf {
-    /// Search interval for the default bisection. Must be a subset of the support.
+    /// The `(lo, hi)` bounds within which bisection searches for the inverse.
     ///
-    /// For half-open upper bounds (e.g. `[1, 2)`) use the open endpoint as `hi` —
-    /// bisection never lands exactly there, and `Domain::try_from` rejects it if it does.
-    fn bisect_interval(&self) -> Interval<f64>;
+    /// Must be a subset of the support. For half-open upper bounds (e.g. `[1, 2)`)
+    /// use the open endpoint as `hi` — bisection never lands exactly there, and
+    /// `Domain::try_from` rejects it if it does.
+    fn search_bounds(&self) -> (f64, f64);
 
-    fn inverse_cdf(&self, p: Probability) -> Result<Domain<Self>, InverseCdfError> {
-        let oracle = BisectOracle {
-            dist: self,
-            target: p,
-        };
-        bisection_search(self.bisect_interval(), &oracle, DEFAULT_MAX_ITER)
-            .and_then(|x| Domain::try_from(x).ok())
-            .ok_or(InverseCdfError::NoConvergence)
-    }
-}
-
-struct BisectOracle<'a, D> {
-    dist: &'a D,
-    target: Probability,
-}
-
-impl<D: Cdf> SearchOracle<f64> for BisectOracle<'_, D> {
-    fn evaluate(&self, cut: &f64) -> SearchDirection {
-        let Ok(x) = Domain::try_from(*cut) else {
-            return SearchDirection::Right;
-        };
-        let diff = self.dist.cdf(x).into_inner() - self.target.into_inner();
-        if diff.abs() < 1e-10 {
-            SearchDirection::Found
-        } else if diff > 0.0 {
-            SearchDirection::Left
-        } else {
-            SearchDirection::Right
-        }
+    fn inverse_cdf(&self, p: Probability) -> Result<Domain<Self>, InverseCdfError>
+    where
+        Self: HasSupport<Bound = f64>,
+    {
+        let (lo, hi) = self.search_bounds();
+        bisection_search(Interval { lo, hi }, |cut| {
+            let Ok(x) = Domain::try_from(*cut) else {
+                return SearchDirection::Right;
+            };
+            let diff = self.cdf(x).into_inner() - p.into_inner();
+            if diff.abs() < 1e-10 {
+                SearchDirection::Found
+            } else if diff > 0.0 {
+                SearchDirection::Left
+            } else {
+                SearchDirection::Right
+            }
+        }, DEFAULT_MAX_ITER)
+        .and_then(|x| Domain::try_from(x).ok())
+        .ok_or(InverseCdfError::NoConvergence)
     }
 }
 
@@ -135,6 +130,7 @@ mod tests {
     struct Uniform12;
 
     impl HasSupport for Uniform12 {
+        type Bound = f64;
         fn contains(x: f64) -> bool {
             x.is_finite() && x >= 1.0 && x < 2.0
         }
@@ -147,20 +143,21 @@ mod tests {
     }
 
     impl InverseCdf for Uniform12 {
-        fn bisect_interval(&self) -> Interval<f64> {
-            Interval { lo: 1.0, hi: 2.0 }
+        fn search_bounds(&self) -> (f64, f64) {
+            (1.0, 2.0)
         }
 
         fn inverse_cdf(&self, p: Probability) -> Result<Domain<Self>, InverseCdfError> {
             (p.into_inner() + 1.0)
                 .try_into()
-                .map_err(|_: InvalidDomain| InverseCdfError::OutOfSupport)
+                .map_err(|_: InvalidDomain<f64>| InverseCdfError::OutOfSupport)
         }
     }
 
     // Continuous uniform on [0, 1].
     struct UnitUniform;
     impl HasSupport for UnitUniform {
+        type Bound = f64;
         fn contains(x: f64) -> bool {
             x.is_finite() && (0.0..=1.0).contains(&x)
         }
@@ -174,6 +171,7 @@ mod tests {
     // Discrete uniform on {0, 1, ..., 9}.
     struct TenPoint;
     impl HasSupport for TenPoint {
+        type Bound = f64;
         fn contains(x: f64) -> bool {
             x.is_finite() && x >= 0.0 && x <= 9.0 && x.fract() == 0.0
         }
@@ -249,6 +247,7 @@ mod tests {
     fn inverse_cdf_bisection_roundtrip() {
         struct Uniform12Bisect;
         impl HasSupport for Uniform12Bisect {
+            type Bound = f64;
             fn contains(x: f64) -> bool {
                 x.is_finite() && x >= 1.0 && x < 2.0
             }
@@ -259,8 +258,8 @@ mod tests {
             }
         }
         impl InverseCdf for Uniform12Bisect {
-            fn bisect_interval(&self) -> Interval<f64> {
-                Interval { lo: 1.0, hi: 2.0 }
+            fn search_bounds(&self) -> (f64, f64) {
+                (1.0, 2.0)
             }
         }
 

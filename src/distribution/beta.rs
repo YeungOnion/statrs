@@ -387,6 +387,7 @@ impl Continuous<f64, f64> for Beta {
 
 #[cfg(feature = "experimental_api")]
 impl crate::experimental_api::HasSupport for Beta {
+    type Bound = f64;
     fn contains(x: f64) -> bool {
         x.is_finite() && (0.0..=1.0).contains(&x)
     }

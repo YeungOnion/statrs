@@ -7,7 +7,6 @@ pub mod bisect;
 pub mod traits;
 pub mod types;
 
-pub use bisect::{Interval, PartitionSpace, SearchDirection};
 pub use traits::{Cdf, InverseCdf, Pdf, Pmf};
 pub use types::{
     CdfError, Domain, HasSupport, InvalidDensity, InvalidDomain, InvalidMass, InvalidProbability,

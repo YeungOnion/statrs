@@ -8,7 +8,7 @@
 //! ```compile_fail
 //! # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
 //! # struct A;
-//! # impl HasSupport for A { fn contains(x: f64) -> bool { x.is_finite() } }
+//! # impl HasSupport for A { type Bound = f64; fn contains(x: f64) -> bool { x.is_finite() } }
 //! # impl Cdf for A { fn cdf(&self, x: Domain<Self>) -> Probability { todo!() } }
 //! A.cdf(0.5_f64); // expected Domain<A>, found f64
 //! ```
@@ -16,10 +16,10 @@
 //! ```compile_fail
 //! # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
 //! # struct A;
-//! # impl HasSupport for A { fn contains(x: f64) -> bool { x.is_finite() } }
+//! # impl HasSupport for A { type Bound = f64; fn contains(x: f64) -> bool { x.is_finite() } }
 //! # impl Cdf for A { fn cdf(&self, x: Domain<Self>) -> Probability { todo!() } }
 //! # struct B;
-//! # impl HasSupport for B { fn contains(x: f64) -> bool { x.is_finite() } }
+//! # impl HasSupport for B { type Bound = f64; fn contains(x: f64) -> bool { x.is_finite() } }
 //! let x: Domain<B> = 0.5_f64.try_into().unwrap();
 //! A.cdf(x); // Domain<B> is not Domain<A>
 //! ```
@@ -191,57 +191,78 @@ impl std::error::Error for InverseCdfError {}
 // ---- Domain validation ----
 
 /// Static support membership for distributions whose bounds are type-level constants.
+///
+/// `Bound` is the type of values that can assert membership and act as bisection
+/// boundaries. All near-term impls use `Bound = f64`.
 pub trait HasSupport {
-    fn contains(x: f64) -> bool;
+    type Bound: Copy;
+    fn contains(x: Self::Bound) -> bool;
 }
 
 /// A value known to lie within distribution `D`'s support.
 ///
-/// Construct via `f64::try_into::<Domain<D>>()` or `Domain::try_from(x)`.
-pub struct Domain<D>(f64, PhantomData<D>);
+/// Construct via `TryFrom<D::Bound>` or the equivalent `try_into()`.
+pub struct Domain<D: HasSupport>(D::Bound, PhantomData<D>);
 
-impl<D> Domain<D> {
-    pub fn into_inner(self) -> f64 {
+impl<D: HasSupport> Domain<D> {
+    pub fn into_inner(self) -> D::Bound {
         self.0
     }
 }
 
-impl<D> Copy for Domain<D> {}
-impl<D> Clone for Domain<D> {
+impl<D: HasSupport> Copy for Domain<D> {}
+impl<D: HasSupport> Clone for Domain<D> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<D> PartialEq for Domain<D> {
+impl<D: HasSupport> PartialEq for Domain<D>
+where
+    D::Bound: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
-impl<D> core::fmt::Debug for Domain<D> {
+impl<D: HasSupport> core::fmt::Debug for Domain<D>
+where
+    D::Bound: core::fmt::Debug,
+{
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("Domain").field(&self.0).finish()
     }
 }
 
 /// Error returned when a value falls outside a distribution's support.
-pub struct InvalidDomain(pub f64);
+pub struct InvalidDomain<B>(pub B);
 
-impl core::fmt::Debug for InvalidDomain {
+impl<B: core::fmt::Display> core::fmt::Debug for InvalidDomain<B> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "InvalidDomain({})", self.0)
     }
 }
-impl core::fmt::Display for InvalidDomain {
+impl<B: core::fmt::Display> core::fmt::Display for InvalidDomain<B> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "value {} is outside the distribution's support", self.0)
     }
 }
 #[cfg(feature = "std")]
-impl std::error::Error for InvalidDomain {}
+impl<B: core::fmt::Display> std::error::Error for InvalidDomain<B> {}
 
-impl<D: HasSupport> TryFrom<f64> for Domain<D> {
-    type Error = InvalidDomain;
+impl<D: HasSupport<Bound = f64>> TryFrom<f64> for Domain<D> {
+    type Error = InvalidDomain<f64>;
     fn try_from(x: f64) -> Result<Self, Self::Error> {
+        if D::contains(x) {
+            Ok(Self(x, PhantomData))
+        } else {
+            Err(InvalidDomain(x))
+        }
+    }
+}
+
+impl<D: HasSupport<Bound = u64>> TryFrom<u64> for Domain<D> {
+    type Error = InvalidDomain<u64>;
+    fn try_from(x: u64) -> Result<Self, Self::Error> {
         if D::contains(x) {
             Ok(Self(x, PhantomData))
         } else {
@@ -256,6 +277,7 @@ impl TryFrom<f64> for Probability {
         Self::new(v)
     }
 }
+
 
 #[cfg(test)]
 mod tests {
