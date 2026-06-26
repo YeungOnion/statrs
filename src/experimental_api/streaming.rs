@@ -55,7 +55,7 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
         if let Some(old_m2) = self.m.get(1).copied() {
             if let Some(m3) = self.m.get_mut(2) {
                 let delta_n2 = delta_n * delta_n;
-                *m3 += delta * delta_n2 * (n - 1.0) * (n - 2.0) / n
+                *m3 += delta * delta_n2 * (n - 1.0) * (n - 2.0)
                     - 3.0 * delta_n * old_m2;
             }
             if let Some(m2) = self.m.get_mut(1) {
@@ -70,6 +70,49 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
 
 impl crate::experimental_api::distribution::private::Sealed for RunningMoments<2> {}
 impl crate::experimental_api::distribution::private::Sealed for RunningMoments<3> {}
+
+impl Moments for RunningMoments<3> {
+    fn mean(&self) -> Option<f64> {
+        if self.count == 0 { None } else { Some(self.m[0]) }
+    }
+
+    fn variance(&self) -> Option<f64> {
+        if self.count < 2 {
+            None
+        } else {
+            Some(self.m[1] / (self.count - 1) as f64)
+        }
+    }
+}
+
+impl Skewness for RunningMoments<3> {
+    fn skewness(&self) -> Option<f64> {
+        if self.count < 2 {
+            return None;
+        }
+        let n = self.count as f64;
+        let m2_mean = self.m[1] / n;
+        let m3_mean = self.m[2] / n;
+        let denom = m2_mean.powf(1.5);
+        if denom == 0.0 {
+            Some(0.0)
+        } else {
+            Some(m3_mean / denom)
+        }
+    }
+}
+
+impl Min for RunningMoments<3> {
+    fn min(&self) -> Option<f64> {
+        if self.count == 0 { None } else { Some(self.min) }
+    }
+}
+
+impl Max for RunningMoments<3> {
+    fn max(&self) -> Option<f64> {
+        if self.count == 0 { None } else { Some(self.max) }
+    }
+}
 
 impl Moments for RunningMoments<2> {
     fn mean(&self) -> Option<f64> {
@@ -188,5 +231,54 @@ mod tests {
             .fold(RunningMoments::<2>::default(), RunningMoments::push);
         assert_eq!(Min::min(&s), Some(1.0));
         assert_eq!(Max::max(&s), Some(5.0));
+    }
+
+    #[test]
+    fn skewness_empty_returns_none() {
+        assert_eq!(RunningMoments::<3>::default().skewness(), None);
+    }
+
+    #[test]
+    fn skewness_single_returns_none() {
+        assert_eq!(RunningMoments::<3>::default().push(1.0).skewness(), None);
+    }
+
+    #[test]
+    fn skewness_symmetric_data_near_zero() {
+        let data = [1.0_f64, 2.0, 3.0, 4.0, 5.0];
+        let s = data.iter().copied()
+            .fold(RunningMoments::<3>::default(), RunningMoments::push);
+        assert!(s.skewness().unwrap().abs() < 1e-10);
+    }
+
+    #[test]
+    fn skewness_known_dataset() {
+        // [2,4,4,4,5,5,7,9]: population skewness = (M3/n) / (M2/n)^(3/2)
+        // M2 = 32, M3 = 42, n = 8
+        // skewness = (42/8) / (32/8)^(3/2) = 5.25 / 8.0 = 0.65625
+        let data = [2.0_f64, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0];
+        let s = data.iter().copied()
+            .fold(RunningMoments::<3>::default(), RunningMoments::push);
+        assert!((s.skewness().unwrap() - 0.65625).abs() < 1e-10);
+    }
+
+    #[test]
+    fn skewness_accum_min_max() {
+        let data = [3.0_f64, 1.0, 4.0, 1.0, 5.0];
+        let s = data.iter().copied()
+            .fold(RunningMoments::<3>::default(), RunningMoments::push);
+        assert_eq!(Min::min(&s), Some(1.0));
+        assert_eq!(Max::max(&s), Some(5.0));
+    }
+
+    #[test]
+    fn skewness_moments_consistent_with_order2() {
+        let data = [2.0_f64, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0];
+        let s2 = data.iter().copied()
+            .fold(RunningMoments::<2>::default(), RunningMoments::push);
+        let s3 = data.iter().copied()
+            .fold(RunningMoments::<3>::default(), RunningMoments::push);
+        assert!((s2.mean().unwrap() - s3.mean().unwrap()).abs() < 1e-12);
+        assert!((s2.variance().unwrap() - s3.variance().unwrap()).abs() < 1e-12);
     }
 }
