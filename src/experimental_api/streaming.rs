@@ -68,6 +68,35 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
     }
 }
 
+impl crate::experimental_api::distribution::private::Sealed for RunningMoments<2> {}
+impl crate::experimental_api::distribution::private::Sealed for RunningMoments<3> {}
+
+impl Moments for RunningMoments<2> {
+    fn mean(&self) -> Option<f64> {
+        if self.count == 0 { None } else { Some(self.m[0]) }
+    }
+
+    fn variance(&self) -> Option<f64> {
+        if self.count < 2 {
+            None
+        } else {
+            Some(self.m[1] / (self.count - 1) as f64)
+        }
+    }
+}
+
+impl Min for RunningMoments<2> {
+    fn min(&self) -> Option<f64> {
+        if self.count == 0 { None } else { Some(self.min) }
+    }
+}
+
+impl Max for RunningMoments<2> {
+    fn max(&self) -> Option<f64> {
+        if self.count == 0 { None } else { Some(self.max) }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -107,5 +136,57 @@ mod tests {
         // [2, 8] → mean = 5.0; m[0] should be 5.0
         let s = Accum::default().push(2.0).push(8.0);
         assert!((s.m[0] - 5.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn moments_empty_returns_none() {
+        let s = RunningMoments::<2>::default();
+        assert_eq!(s.mean(), None);
+        assert_eq!(s.variance(), None);
+        assert_eq!(s.std_dev(), None);
+    }
+
+    #[test]
+    fn moments_single_element_variance_none() {
+        let s = RunningMoments::<2>::default().push(5.0);
+        assert_eq!(s.mean(), Some(5.0));
+        assert_eq!(s.variance(), None);
+        assert_eq!(s.std_dev(), None);
+    }
+
+    #[test]
+    fn moments_known_dataset() {
+        // [2,4,4,4,5,5,7,9]: mean=5.0, sample variance=32/7
+        let data = [2.0_f64, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0];
+        let s = data.iter().copied()
+            .fold(RunningMoments::<2>::default(), RunningMoments::push);
+        assert!((s.mean().unwrap() - 5.0).abs() < 1e-12);
+        assert!((s.variance().unwrap() - 32.0 / 7.0).abs() < 1e-12);
+        assert!((s.std_dev().unwrap() - (32.0_f64 / 7.0).sqrt()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn moments_nan_propagates_as_some_nan() {
+        let s = [1.0_f64, f64::NAN]
+            .iter().copied()
+            .fold(RunningMoments::<2>::default(), RunningMoments::push);
+        assert!(s.mean().unwrap().is_nan());
+        assert!(s.variance().unwrap().is_nan());
+    }
+
+    #[test]
+    fn min_max_empty_returns_none() {
+        let s = RunningMoments::<2>::default();
+        assert_eq!(Min::min(&s), None);
+        assert_eq!(Max::max(&s), None);
+    }
+
+    #[test]
+    fn min_max_populated() {
+        let s = [3.0_f64, 1.0, 4.0, 1.0, 5.0]
+            .iter().copied()
+            .fold(RunningMoments::<2>::default(), RunningMoments::push);
+        assert_eq!(Min::min(&s), Some(1.0));
+        assert_eq!(Max::max(&s), Some(5.0));
     }
 }
