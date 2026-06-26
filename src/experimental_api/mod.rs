@@ -4,6 +4,7 @@
 //! Expect this to change rapidly, potentially breaking every commit.
 
 pub mod bisect;
+pub mod streaming;
 pub mod distribution;
 pub mod summary;
 pub mod traits;
