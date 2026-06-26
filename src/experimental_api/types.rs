@@ -67,7 +67,7 @@ pub struct InvalidMass(pub f64);
 pub enum InverseCdfError {
     /// The bisection search did not converge within the iteration limit.
     NoConvergence,
-    /// The inverse falls outside the support, e.g. `p = 1.0` with a
+    /// The inverse falls outside the support — e.g. `p = 1.0` with a
     /// half-open upper bound.
     OutOfSupport,
 }
@@ -194,9 +194,12 @@ impl TryFrom<f64> for Probability {
 /// `Variate<Beta, f64>` and `Variate<Normal, f64>` are distinct types even
 /// though both wrap an `f64`.
 ///
-/// `B` is the type backing the sample space:
-/// - `f64` for continuous univariate
-/// - `u64` for discrete
+/// `B` is the sample-space type: `f64` for continuous distributions, `u64`
+/// for discrete. It's inferred in most contexts — `let x = dist.try_variate(0.3)?`
+/// needs no annotation.
+///
+/// No `D: TryVariate` bound on the struct itself; that constraint belongs on
+/// the methods that produce and consume `Variate` values, not the storage type.
 ///
 /// Construct via [`TryVariate::try_variate`].
 #[doc(alias = "domain")]

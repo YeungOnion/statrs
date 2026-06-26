@@ -59,6 +59,8 @@ pub trait TryVariate: Sized {
 }
 
 /// Probability density function.
+///
+/// `ln_pdf` defaults to `pdf(x).into_inner().ln()`.
 pub trait Pdf: TryVariate {
     fn pdf(&self, x: Variate<Self, Self::Bound>) -> ProbabilityDensity;
 
@@ -68,6 +70,8 @@ pub trait Pdf: TryVariate {
 }
 
 /// Probability mass function.
+///
+/// `ln_pmf` defaults to `pmf(x).into_inner().ln()`.
 pub trait Pmf: TryVariate {
     fn pmf(&self, x: Variate<Self, Self::Bound>) -> ProbabilityMass;
 
@@ -78,8 +82,11 @@ pub trait Pmf: TryVariate {
 
 /// Cumulative distribution function.
 ///
-/// See also [`InverseCdf`] for the complementary direction, and [`TryVariate`] for
-/// validating args to this method.
+/// Takes [`Variate<Self, Self::Bound>`] rather than a raw value, so the
+/// method is infallible.
+///
+/// Note to implementors:
+/// If the method for Cdf evaluation is fallible, that should be a new trait.
 pub trait ClosedFormCdf: TryVariate {
     fn cdf(&self, x: Variate<Self, Self::Bound>) -> Probability;
 }
