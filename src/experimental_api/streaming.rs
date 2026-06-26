@@ -140,6 +140,16 @@ impl Max for RunningMoments<2> {
     }
 }
 
+/// Single-pass mean accumulator. Alias for [`RunningMoments<2>`] — variance is
+/// computed alongside mean at no extra cost via Welford's algorithm.
+pub type MeanAccum = RunningMoments<2>;
+
+/// Single-pass mean and variance accumulator.
+pub type VarianceAccum = RunningMoments<2>;
+
+/// Single-pass mean, variance, and skewness accumulator.
+pub type SkewnessAccum = RunningMoments<3>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,6 +279,29 @@ mod tests {
             .fold(RunningMoments::<3>::default(), RunningMoments::push);
         assert_eq!(Min::min(&s), Some(1.0));
         assert_eq!(Max::max(&s), Some(5.0));
+    }
+
+    #[test]
+    fn mean_accum_and_variance_accum_are_same_type() {
+        let _: fn(MeanAccum, f64) -> MeanAccum = VarianceAccum::push;
+    }
+
+    #[test]
+    fn fold_ergonomics_example() {
+        let data = [1.0_f64, 2.0, 3.0, 4.0, 5.0];
+        let s = data.iter().copied()
+            .fold(VarianceAccum::default(), VarianceAccum::push);
+        assert_eq!(s.count, 5);
+        assert!((s.mean().unwrap() - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn skewness_accum_alias_works() {
+        let data = [1.0_f64, 2.0, 3.0];
+        let s = data.iter().copied()
+            .fold(SkewnessAccum::default(), SkewnessAccum::push);
+        assert_eq!(s.count, 3);
+        assert!(s.skewness().is_some());
     }
 
     #[test]
