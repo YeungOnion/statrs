@@ -4,15 +4,18 @@
 //! Expect this to change rapidly, potentially breaking every commit.
 
 pub mod bisect;
-pub mod streaming;
 pub mod distribution;
+pub mod fold;
+pub mod streaming;
 pub mod summary;
 pub mod traits;
 pub mod types;
 
 pub use distribution::{Entropy, Max, Median, Min, Mode, Moments, Skewness};
+pub use fold::FoldStat;
 pub use streaming::{MeanAccum, RunningMoments, SkewnessAccum, VarianceAccum};
-pub use summary::quadratic_mean;
+pub use summary::{abs_max, abs_min, geometric_mean, harmonic_mean, quadratic_mean};
+
 pub use traits::{ClosedFormCdf, InverseCdf, Pdf, Pmf, TryVariate};
 pub use types::{
     InvalidDensity, InvalidMass, InvalidProbability, InvalidVariate, InverseCdfError, Probability,
