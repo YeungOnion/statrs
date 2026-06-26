@@ -132,6 +132,27 @@ mod tests {
     }
 
     #[test]
+    fn variance_and_min() {
+        let reducer = |(s, m): (RunningMoments<_>, f64), x: f64| {
+            if x.is_finite() {
+                Ok((s.push(x), m.min(x)))
+            } else {
+                Err((x, x))
+            }
+        };
+        let data = [1.0_f64, 2.0, 3.0].iter();
+        let (var, m) = match data.copied().try_fold(
+            (VarianceAccum::default(), f64::INFINITY),
+            reducer as fn(_, _) -> _,
+        ) {
+            Ok((s, m)) => (s.variance().unwrap(), m),
+            Err((x, y)) => (x, y),
+        };
+        assert_eq!(var, 1.0);
+        assert_eq!(m, 1.0);
+    }
+
+    #[test]
     fn push_increments_count() {
         let s = Accum::default().push(3.0);
         assert_eq!(s.count, 1);
