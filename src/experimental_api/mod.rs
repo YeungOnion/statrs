@@ -9,7 +9,7 @@ pub mod summary;
 pub mod traits;
 pub mod types;
 
-pub use distribution::{Entropy, Median, Mode, Moments, Skewness};
+pub use distribution::{Entropy, Max, Median, Min, Mode, Moments, Skewness};
 pub use summary::quadratic_mean;
 pub use traits::{ClosedFormCdf, InverseCdf, Pdf, Pmf, TryVariate};
 pub use types::{

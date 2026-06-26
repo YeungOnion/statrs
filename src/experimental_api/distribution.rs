@@ -1,4 +1,4 @@
-mod private {
+pub(super) mod private {
     pub(crate) trait Sealed {}
 }
 
@@ -29,6 +29,16 @@ pub trait Median: private::Sealed {
 #[allow(private_bounds)]
 pub trait Mode: private::Sealed {
     fn mode(&self) -> Option<f64>;
+}
+
+#[allow(private_bounds)]
+pub trait Min: private::Sealed {
+    fn min(&self) -> Option<f64>;
+}
+
+#[allow(private_bounds)]
+pub trait Max: private::Sealed {
+    fn max(&self) -> Option<f64>;
 }
 
 #[cfg(test)]
@@ -73,5 +83,25 @@ mod tests {
     #[test]
     fn std_dev_none_when_variance_none() {
         assert_eq!(NoVariance.std_dev(), None);
+    }
+
+    #[test]
+    fn min_impl_returns_some() {
+        struct HasMin;
+        impl private::Sealed for HasMin {}
+        impl Min for HasMin {
+            fn min(&self) -> Option<f64> { Some(1.0) }
+        }
+        assert_eq!(HasMin.min(), Some(1.0));
+    }
+
+    #[test]
+    fn max_impl_returns_none_for_empty() {
+        struct EmptyMax;
+        impl private::Sealed for EmptyMax {}
+        impl Max for EmptyMax {
+            fn max(&self) -> Option<f64> { None }
+        }
+        assert_eq!(EmptyMax.max(), None);
     }
 }
