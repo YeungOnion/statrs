@@ -1,3 +1,75 @@
+//! Derived summary statistics built on [`FoldStat`].
+//!
+//! Each statistic is available as a free function. Power users who want to
+//! combine multiple statistics in a single iterator pass can pull the named
+//! step and finalize functions from [`steps`] and compose them manually.
+//!
+//! [`FoldStat`]: crate::experimental_api::FoldStat
+//!
+//! # Single-pass composition examples
+//!
+//! ## Using named steps with `fold_stat`
+//!
+//! The free functions are thin wrappers over [`FoldStat::fold_stat`]. Calling
+//! `fold_stat` with the exported step and finalize functions is equivalent and
+//! lets you swap in a different accumulator or chain further transforms:
+//!
+//! ```rust
+//! use statrs::experimental_api::{FoldStat, MeanAccum};
+//! use statrs::experimental_api::summary::steps::{geometric_step, geometric_finalize};
+//!
+//! let data = [2.0_f64, 8.0];
+//! let result = data.iter().copied()
+//!     .fold_stat(MeanAccum::default(), geometric_step, geometric_finalize);
+//! let v = result.unwrap().unwrap();
+//! assert!((v - 4.0).abs() < 1e-10); // geometric mean of [2, 8] is 4
+//! ```
+//!
+//! ## Composing iterator adapters before `fold_stat`
+//!
+//! Standard iterator adapters apply before the fold, so derived statistics on
+//! transformed data need no special step function:
+//!
+//! ```rust
+//! use statrs::experimental_api::{FoldStat, MeanAccum};
+//! use statrs::experimental_api::summary::steps::{geometric_step, geometric_finalize};
+//!
+//! // Geometric mean of absolute values: map first, then fold.
+//! let data = [-2.0_f64, 8.0];
+//! let result = data.iter().copied()
+//!     .map(f64::abs)
+//!     .fold_stat(MeanAccum::default(), geometric_step, geometric_finalize);
+//! let v = result.unwrap().unwrap();
+//! assert!((v - 4.0).abs() < 1e-10);
+//! ```
+//!
+//! ## Single-pass tuple accumulator for multiple statistics
+//!
+//! Combine an arbitrary number of accumulators by folding into a tuple.
+//! This computes sample variance and absolute minimum in one pass:
+//!
+//! ```rust
+//! use core::ops::ControlFlow;
+//! use statrs::experimental_api::{FoldStat, Moments, VarianceAccum};
+//!
+//! let data = [1.0_f64, 2.0, 3.0];
+//! let result = data.iter().copied()
+//!     .fold_stat(
+//!         (VarianceAccum::default(), None::<f64>),
+//!         |(var, mn), x| {
+//!             if x.is_nan() {
+//!                 ControlFlow::Break(Err(x))
+//!             } else {
+//!                 ControlFlow::Continue((var.push(x), Some(mn.map_or(x.abs(), |m| m.min(x.abs())))))
+//!             }
+//!         },
+//!         |(var, mn)| Some((var.variance()?, mn?)),
+//!     );
+//! let (variance, abs_min) = result.unwrap().unwrap();
+//! assert_eq!(variance, 1.0);
+//! assert_eq!(abs_min, 1.0);
+//! ```
+
 use core::ops::ControlFlow;
 
 use crate::experimental_api::distribution::Moments;
