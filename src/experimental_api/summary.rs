@@ -76,7 +76,7 @@ use core::ops::ControlFlow;
 
 use crate::experimental_api::distribution::Moments;
 use crate::experimental_api::fold::FoldStat;
-use crate::experimental_api::streaming::MeanAccum;
+use crate::experimental_api::streaming::{MeanAccum, RunningCov};
 
 // --- quadratic mean ---
 
@@ -182,6 +182,21 @@ pub fn abs_max(iter: impl IntoIterator<Item = f64>) -> Option<f64> {
         .map_or(Option::None, |x| x)
 }
 
+// --- covariance ---
+
+/// Sample covariance matrix over `N` variables from paired observations.
+///
+/// Returns `None` for empty input or a single observation (sample covariance
+/// requires at least two). Each item must be an array of `N` simultaneous
+/// measurements.
+pub fn covariance<const N: usize>(
+    data: impl IntoIterator<Item = [f64; N]>,
+) -> Option<[[f64; N]; N]> {
+    data.into_iter()
+        .fold(RunningCov::<N>::default(), RunningCov::push)
+        .finalize()
+}
+
 pub mod steps {
     pub use super::{
         abs_max_finalize, abs_max_step, abs_min_finalize, abs_min_step, geometric_finalize,
@@ -271,6 +286,21 @@ mod tests {
     #[test]
     fn abs_min_nan_is_none() {
         assert_eq!(abs_min([1.0, f64::NAN, 2.0]), None);
+    }
+
+    // covariance
+
+    #[test]
+    fn covariance_empty_is_none() {
+        assert!(covariance::<2>([]).is_none());
+    }
+
+    #[test]
+    fn covariance_n2_positive_correlation() {
+        // [(1,2),(3,4),(5,6)]: cov[0][1] = 4.0
+        let data = [[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]];
+        let mat = covariance(data).unwrap();
+        assert!((mat[0][1] - 4.0).abs() < 1e-12);
     }
 
     // abs_max

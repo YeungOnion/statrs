@@ -16,7 +16,8 @@ pub trait Moments: Sealed {
 
 /// Population variance, normalised by N rather than N-1.
 ///
-/// See also [`Moments::variance`] for sample estimates.
+/// Use when the data is the full population. For sample estimates
+/// see [`Moments::variance`].
 #[allow(private_bounds)]
 pub trait PopulationMoments: Sealed {
     /// Population variance, normalised by N.

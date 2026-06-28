@@ -25,7 +25,7 @@ harness = false
 required-features = ["rand", "std"]
 
 [features]
-default = ["std", "nalgebra", "rand"]
+default = ["std", "nalgebra", "rand", "experimental_api"]
 std = ["nalgebra?/std", "rand?/std", "decorum?/std"]
 # at the moment, all nalgebra features needs std
 nalgebra = ["dep:nalgebra", "std"]

@@ -134,6 +134,75 @@ impl PopulationMoments for RunningMoments<3> {
 /// computed alongside mean at no extra cost via Welford's algorithm.
 pub type MeanAccum = RunningMoments<2>;
 
+/// Single-pass N-variable sample covariance matrix accumulator.
+///
+/// `push` updates only the upper triangle of the cross-product matrix;
+/// `finalize` mirrors it to the lower triangle and scales by `n − 1`.
+///
+/// Compose with [`RunningMoments`] via `fold` to get means and the covariance
+/// matrix in one pass.
+pub struct RunningCov<const N: usize> {
+    pub count: u64,
+    mean: [f64; N],
+    /// Upper triangle of the running cross-product matrix (Welford online).
+    /// `c[i][j]` is only maintained for `j >= i`; lower triangle is zeroed
+    /// until `finalize` fills it in.
+    c: [[f64; N]; N],
+}
+
+impl<const N: usize> Default for RunningCov<N> {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            mean: [0.0; N],
+            c: [[0.0; N]; N],
+        }
+    }
+}
+
+impl<const N: usize> RunningCov<N> {
+    pub fn push(mut self, x: [f64; N]) -> Self {
+        self.count += 1;
+        let n = self.count as f64;
+
+        let mut delta = [0.0; N];
+        for i in 0..N {
+            delta[i] = x[i] - self.mean[i];
+            self.mean[i] += delta[i] / n;
+        }
+
+        // delta2[j] = x[j] - new_mean[j]; only upper triangle (j >= i)
+        for i in 0..N {
+            for j in i..N {
+                self.c[i][j] += delta[i] * (x[j] - self.mean[j]);
+            }
+        }
+
+        self
+    }
+
+    /// Returns the sample covariance matrix (normalised by `n − 1`), or
+    /// `None` if fewer than two observations have been pushed.
+    ///
+    /// Mirrors the upper triangle to the lower triangle before returning.
+    pub fn finalize(mut self) -> Option<[[f64; N]; N]> {
+        if self.count < 2 {
+            return None;
+        }
+        let denom = (self.count - 1) as f64;
+        for i in 0..N {
+            for j in i..N {
+                self.c[i][j] /= denom;
+                self.c[j][i] = self.c[i][j];
+            }
+        }
+        Some(self.c)
+    }
+}
+
+/// Type alias for a covariance accumulator over `N` variables.
+pub type CovAccum<const N: usize> = RunningCov<N>;
+
 /// Single-pass mean and variance accumulator.
 pub type VarianceAccum = RunningMoments<2>;
 
@@ -333,5 +402,75 @@ mod tests {
             .fold(RunningMoments::<3>::default(), RunningMoments::push);
         assert!((s2.mean().unwrap() - s3.mean().unwrap()).abs() < 1e-12);
         assert!((s2.variance().unwrap() - s3.variance().unwrap()).abs() < 1e-12);
+    }
+}
+
+#[cfg(test)]
+mod cov_tests {
+    use super::*;
+
+    #[test]
+    fn default_count_is_zero() {
+        assert_eq!(RunningCov::<2>::default().count, 0);
+    }
+
+    #[test]
+    fn push_increments_count() {
+        assert_eq!(RunningCov::<2>::default().push([1.0, 2.0]).count, 1);
+    }
+
+    #[test]
+    fn finalize_empty_is_none() {
+        assert!(RunningCov::<2>::default().finalize().is_none());
+    }
+
+    #[test]
+    fn finalize_single_obs_is_none() {
+        assert!(RunningCov::<2>::default().push([1.0, 2.0]).finalize().is_none());
+    }
+
+    #[test]
+    fn finalize_n2_positive_correlation() {
+        // [(1,2),(3,4),(5,6)]: means=[3,4], cov matrix = [[4,4],[4,4]]
+        let s = [[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]]
+            .into_iter()
+            .fold(RunningCov::<2>::default(), RunningCov::push);
+        let mat = s.finalize().unwrap();
+        assert!((mat[0][0] - 4.0).abs() < 1e-12);
+        assert!((mat[0][1] - 4.0).abs() < 1e-12);
+        assert!((mat[1][0] - 4.0).abs() < 1e-12);
+        assert!((mat[1][1] - 4.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn finalize_n2_negative_correlation() {
+        // [(1,6),(3,4),(5,2)]: means=[3,4], cov matrix = [[4,-4],[-4,4]]
+        let s = [[1.0_f64, 6.0], [3.0, 4.0], [5.0, 2.0]]
+            .into_iter()
+            .fold(RunningCov::<2>::default(), RunningCov::push);
+        let mat = s.finalize().unwrap();
+        assert!((mat[0][0] - 4.0).abs() < 1e-12);
+        assert!((mat[0][1] + 4.0).abs() < 1e-12);
+        assert!((mat[1][0] + 4.0).abs() < 1e-12);
+        assert!((mat[1][1] - 4.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn finalize_is_symmetric() {
+        let s = [[1.0_f64, 6.0], [3.0, 4.0], [5.0, 2.0]]
+            .into_iter()
+            .fold(RunningCov::<2>::default(), RunningCov::push);
+        let mat = s.finalize().unwrap();
+        assert_eq!(mat[0][1], mat[1][0]);
+    }
+
+    #[test]
+    fn n1_covariance_matches_variance() {
+        // N=1: cov matrix [[variance]]; [1,2,3] has sample variance 1.0
+        let s = [[1.0_f64], [2.0], [3.0]]
+            .into_iter()
+            .fold(RunningCov::<1>::default(), RunningCov::push);
+        let mat = s.finalize().unwrap();
+        assert!((mat[0][0] - 1.0).abs() < 1e-12);
     }
 }
