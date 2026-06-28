@@ -1,4 +1,5 @@
 use crate::Sealed;
+use crate::experimental_api::fold::Accumulate;
 use crate::experimental_api::{Moments, PopulationMoments, Skewness};
 
 pub struct RunningMoments<const ORDER: usize> {
@@ -130,6 +131,12 @@ impl PopulationMoments for RunningMoments<3> {
     }
 }
 
+impl<const ORDER: usize> Accumulate for RunningMoments<ORDER> {
+    fn push(self, x: f64) -> Self {
+        RunningMoments::push(self, x)
+    }
+}
+
 /// Single-pass mean accumulator. Alias for [`RunningMoments<2>`] — variance is
 /// computed alongside mean at no extra cost via Welford's algorithm.
 pub type MeanAccum = RunningMoments<2>;
@@ -202,6 +209,56 @@ impl<const N: usize> RunningCov<N> {
 
 /// Type alias for a covariance accumulator over `N` variables.
 pub type CovAccum<const N: usize> = RunningCov<N>;
+
+/// Single-pass absolute minimum accumulator.
+///
+/// NaN poisons the state: any NaN observation causes [`abs_min`] to return `None`.
+///
+/// [`abs_min`]: AbsMinAccum::abs_min
+#[derive(Default)]
+pub struct AbsMinAccum(Option<f64>);
+
+impl AbsMinAccum {
+    pub fn abs_min(self) -> Option<f64> {
+        self.0.filter(|v| !v.is_nan())
+    }
+}
+
+impl Accumulate for AbsMinAccum {
+    fn push(self, x: f64) -> Self {
+        match self.0 {
+            Some(v) if v.is_nan() => self,
+            _ if x.is_nan() => Self(Some(f64::NAN)),
+            Some(v) => Self(Some(v.min(x.abs()))),
+            None => Self(Some(x.abs())),
+        }
+    }
+}
+
+/// Single-pass absolute maximum accumulator.
+///
+/// NaN poisons the state: any NaN observation causes [`abs_max`] to return `None`.
+///
+/// [`abs_max`]: AbsMaxAccum::abs_max
+#[derive(Default)]
+pub struct AbsMaxAccum(Option<f64>);
+
+impl AbsMaxAccum {
+    pub fn abs_max(self) -> Option<f64> {
+        self.0.filter(|v| !v.is_nan())
+    }
+}
+
+impl Accumulate for AbsMaxAccum {
+    fn push(self, x: f64) -> Self {
+        match self.0 {
+            Some(v) if v.is_nan() => self,
+            _ if x.is_nan() => Self(Some(f64::NAN)),
+            Some(v) => Self(Some(v.max(x.abs()))),
+            None => Self(Some(x.abs())),
+        }
+    }
+}
 
 /// Single-pass mean and variance accumulator.
 pub type VarianceAccum = RunningMoments<2>;
@@ -472,5 +529,62 @@ mod cov_tests {
             .fold(RunningCov::<1>::default(), RunningCov::push);
         let mat = s.finalize().unwrap();
         assert!((mat[0][0] - 1.0).abs() < 1e-12);
+    }
+}
+
+#[cfg(test)]
+mod accumulate_tests {
+    use super::*;
+    use crate::experimental_api::fold::Accumulate;
+
+    #[test]
+    fn running_moments_impl_accumulate() {
+        let s: RunningMoments<2> = [1.0_f64, 2.0, 3.0]
+            .iter().copied()
+            .fold(Default::default(), Accumulate::push);
+        assert_eq!(s.mean(), Some(2.0));
+    }
+
+    #[test]
+    fn abs_min_empty_is_none() {
+        assert_eq!(AbsMinAccum::default().abs_min(), None);
+    }
+
+    #[test]
+    fn abs_min_basic() {
+        let acc = AbsMinAccum::default().push(3.0).push(-1.0).push(4.0);
+        assert_eq!(acc.abs_min(), Some(1.0));
+    }
+
+    #[test]
+    fn abs_min_nan_poisons() {
+        let acc = AbsMinAccum::default().push(1.0).push(f64::NAN).push(0.5);
+        assert_eq!(acc.abs_min(), None);
+    }
+
+    #[test]
+    fn abs_max_empty_is_none() {
+        assert_eq!(AbsMaxAccum::default().abs_max(), None);
+    }
+
+    #[test]
+    fn abs_max_basic() {
+        let acc = AbsMaxAccum::default().push(-5.0).push(2.0);
+        assert_eq!(acc.abs_max(), Some(5.0));
+    }
+
+    #[test]
+    fn abs_max_nan_poisons() {
+        let acc = AbsMaxAccum::default().push(10.0).push(f64::NAN).push(20.0);
+        assert_eq!(acc.abs_max(), None);
+    }
+
+    #[test]
+    fn tuple_composition_variance_and_abs_min() {
+        let data = [3.0_f64, -1.0, 4.0, -1.0, 5.0];
+        let (var, mn): (VarianceAccum, AbsMinAccum) = data.iter().copied()
+            .fold(Default::default(), Accumulate::push);
+        assert_eq!(mn.abs_min(), Some(1.0));
+        assert!(var.variance().is_some());
     }
 }

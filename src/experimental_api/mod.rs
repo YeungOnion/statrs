@@ -12,8 +12,11 @@ pub mod traits;
 pub mod types;
 
 pub use distribution::{Entropy, Max, Median, Min, Mode, Moments, PopulationMoments, Skewness};
-pub use fold::FoldStat;
-pub use streaming::{CovAccum, MeanAccum, RunningCov, RunningMoments, SkewnessAccum, VarianceAccum};
+pub use fold::Accumulate;
+pub use streaming::{
+    AbsMaxAccum, AbsMinAccum, CovAccum, MeanAccum, RunningCov, RunningMoments, SkewnessAccum,
+    VarianceAccum,
+};
 pub use summary::{abs_max, abs_min, covariance, geometric_mean, harmonic_mean, quadratic_mean};
 
 pub use traits::{ClosedFormCdf, InverseCdf, Pdf, Pmf, TryVariate};
