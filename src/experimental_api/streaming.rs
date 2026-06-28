@@ -5,6 +5,7 @@ use crate::experimental_api::{Moments, PopulationMoments, Skewness};
 pub struct RunningMoments<const ORDER: usize> {
     pub count: u64,
     m: [f64; ORDER],
+    c: [f64; ORDER],
 }
 
 impl<const ORDER: usize> Default for RunningMoments<ORDER> {
@@ -12,6 +13,7 @@ impl<const ORDER: usize> Default for RunningMoments<ORDER> {
         Self {
             count: 0,
             m: [0.0; ORDER],
+            c: [0.0; ORDER],
         }
     }
 }
@@ -34,24 +36,35 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
         // m[1] = sum of squared deviations (M2), if ORDER >= 2
         // m[2] = sum of cubed deviations (M3), if ORDER >= 3
         //
-        // Update order: M3 before M2 (uses old M2), M2 before M1.
-        let delta = x - self.m[0]; // deviation from OLD mean
+        // Update order: M3 before M2 before M1; each increment uses the
+        // previous observation's lower-order accumulators.
+        let delta = x - self.m[0];
         let delta_n = delta / n;
         let new_mean = self.m[0] + delta_n;
-        let delta2 = x - new_mean; // deviation from NEW mean
+        let delta2 = x - new_mean;
 
-        if let Some(old_m2) = self.m.get(1).copied() {
-            if let Some(m3) = self.m.get_mut(2) {
+        if let Some(&old_m2) = self.m.get(1) {
+            if self.m.get(2).is_some() {
                 let delta_n2 = delta_n * delta_n;
-                *m3 += delta * delta_n2 * (n - 1.0) * (n - 2.0) - 3.0 * delta_n * old_m2;
+                self.compensated_add(2, delta * delta_n2 * (n - 1.0) * (n - 2.0) - 3.0 * delta_n * old_m2);
             }
-            if let Some(m2) = self.m.get_mut(1) {
-                *m2 += delta * delta2;
-            }
+            self.compensated_add(1, delta * delta2);
         }
 
         self.m[0] = new_mean;
         self
+    }
+
+    // Kahan-compensated add to m[k]: caller has verified k < ORDER.
+    fn compensated_add(&mut self, k: usize, inc: f64) {
+        let y = inc - self.c[k];
+        let t = self.m[k] + y;
+        self.c[k] = (t - self.m[k]) - y;
+        self.m[k] = t;
+    }
+
+    pub fn from_iter<I: IntoIterator<Item = f64>>(iter: I) -> Self {
+        iter.into_iter().fold(Self::default(), Self::push)
     }
 }
 
@@ -483,7 +496,12 @@ mod cov_tests {
 
     #[test]
     fn finalize_single_obs_is_none() {
-        assert!(RunningCov::<2>::default().push([1.0, 2.0]).finalize().is_none());
+        assert!(
+            RunningCov::<2>::default()
+                .push([1.0, 2.0])
+                .finalize()
+                .is_none()
+        );
     }
 
     #[test]
@@ -540,7 +558,8 @@ mod accumulate_tests {
     #[test]
     fn running_moments_impl_accumulate() {
         let s: RunningMoments<2> = [1.0_f64, 2.0, 3.0]
-            .iter().copied()
+            .iter()
+            .copied()
             .fold(Default::default(), Accumulate::push);
         assert_eq!(s.mean(), Some(2.0));
     }
@@ -582,7 +601,9 @@ mod accumulate_tests {
     #[test]
     fn tuple_composition_variance_and_abs_min() {
         let data = [3.0_f64, -1.0, 4.0, -1.0, 5.0];
-        let (var, mn): (VarianceAccum, AbsMinAccum) = data.iter().copied()
+        let (var, mn): (VarianceAccum, AbsMinAccum) = data
+            .iter()
+            .copied()
             .fold(Default::default(), Accumulate::push);
         assert_eq!(mn.abs_min(), Some(1.0));
         assert!(var.variance().is_some());

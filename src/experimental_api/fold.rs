@@ -1,6 +1,7 @@
 /// A type that accumulates `f64` observations one at a time.
 ///
-/// Impl on tuples of Accumulate to enable multiple statistics computed on single iterator pass
+/// Tuple impls up to arity 5 fan each observation out to all accumulators,
+/// so multiple statistics can share a single iterator pass:
 ///
 /// ```
 /// use statrs::experimental_api::{Accumulate, Moments, VarianceAccum, AbsMinAccum};
