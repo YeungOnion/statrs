@@ -2,6 +2,7 @@ use crate::Sealed;
 use crate::experimental_api::fold::Accumulate;
 use crate::experimental_api::{Moments, PopulationMoments, Skewness};
 
+/// data container for results of streaming moments of float sequence
 pub struct RunningMoments<const ORDER: usize> {
     pub count: u64,
     m: [f64; ORDER],
@@ -46,7 +47,10 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
         if let Some(&old_m2) = self.m.get(1) {
             if self.m.get(2).is_some() {
                 let delta_n2 = delta_n * delta_n;
-                self.compensated_add(2, delta * delta_n2 * (n - 1.0) * (n - 2.0) - 3.0 * delta_n * old_m2);
+                self.compensated_add(
+                    2,
+                    delta * delta_n2 * (n - 1.0) * (n - 2.0) - 3.0 * delta_n * old_m2,
+                );
             }
             self.compensated_add(1, delta * delta2);
         }
@@ -63,6 +67,14 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
         self.m[k] = t;
     }
 
+    /// Collects an iterator into an accumulator in a single pass.
+    ///
+    /// ```
+    /// # use statrs::experimental_api::{VarianceAccum, Moments};
+    /// let s = VarianceAccum::from_iter([1.0_f64, 2.0, 3.0]);
+    /// assert_eq!(s.mean(), Some(2.0));
+    /// assert_eq!(s.variance(), Some(1.0));
+    /// ```
     pub fn from_iter<I: IntoIterator<Item = f64>>(iter: I) -> Self {
         iter.into_iter().fold(Self::default(), Self::push)
     }
@@ -181,6 +193,16 @@ impl<const N: usize> Default for RunningCov<N> {
 }
 
 impl<const N: usize> RunningCov<N> {
+    /// Folds one observation vector into the accumulator.
+    ///
+    /// Designed for use as an `Iterator::fold` accumulator:
+    /// ```
+    /// # use statrs::experimental_api::CovAccum;
+    /// let s = [[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]]
+    ///     .into_iter()
+    ///     .fold(CovAccum::<2>::default(), CovAccum::push);
+    /// assert_eq!(s.count, 3);
+    /// ```
     pub fn push(mut self, x: [f64; N]) -> Self {
         self.count += 1;
         let n = self.count as f64;
@@ -199,6 +221,19 @@ impl<const N: usize> RunningCov<N> {
         }
 
         self
+    }
+
+    /// Collects an iterator of observation vectors into an accumulator in a single pass.
+    ///
+    /// ```
+    /// # use statrs::experimental_api::CovAccum;
+    /// let mat = CovAccum::<2>::from_iter([[1.0_f64, 6.0], [3.0, 4.0], [5.0, 2.0]])
+    ///     .finalize()
+    ///     .unwrap();
+    /// assert!((mat[0][1] + 4.0).abs() < 1e-12); // negative correlation
+    /// ```
+    pub fn from_iter<I: IntoIterator<Item = [f64; N]>>(iter: I) -> Self {
+        iter.into_iter().fold(Self::default(), Self::push)
     }
 
     /// Returns the sample covariance matrix (normalised by `n − 1`), or
@@ -232,8 +267,25 @@ pub type CovAccum<const N: usize> = RunningCov<N>;
 pub struct AbsMinAccum(Option<f64>);
 
 impl AbsMinAccum {
+    /// Returns the absolute minimum seen, or `None` if empty or any element was NaN.
+    ///
+    /// ```
+    /// # use statrs::experimental_api::{AbsMinAccum, Accumulate};
+    /// let acc = AbsMinAccum::default().push(3.0).push(-1.0).push(4.0);
+    /// assert_eq!(acc.abs_min(), Some(1.0));
+    /// ```
     pub fn abs_min(self) -> Option<f64> {
         self.0.filter(|v| !v.is_nan())
+    }
+
+    /// Collects an iterator into an accumulator in a single pass.
+    ///
+    /// ```
+    /// # use statrs::experimental_api::AbsMinAccum;
+    /// assert_eq!(AbsMinAccum::from_iter([3.0_f64, -1.0, 4.0]).abs_min(), Some(1.0));
+    /// ```
+    pub fn from_iter<I: IntoIterator<Item = f64>>(iter: I) -> Self {
+        iter.into_iter().fold(Self::default(), Self::push)
     }
 }
 
@@ -257,8 +309,25 @@ impl Accumulate for AbsMinAccum {
 pub struct AbsMaxAccum(Option<f64>);
 
 impl AbsMaxAccum {
+    /// Returns the absolute maximum seen, or `None` if empty or any element was NaN.
+    ///
+    /// ```
+    /// # use statrs::experimental_api::{AbsMaxAccum, Accumulate};
+    /// let acc = AbsMaxAccum::default().push(-5.0).push(2.0);
+    /// assert_eq!(acc.abs_max(), Some(5.0));
+    /// ```
     pub fn abs_max(self) -> Option<f64> {
         self.0.filter(|v| !v.is_nan())
+    }
+
+    /// Collects an iterator into an accumulator in a single pass.
+    ///
+    /// ```
+    /// # use statrs::experimental_api::AbsMaxAccum;
+    /// assert_eq!(AbsMaxAccum::from_iter([-5.0_f64, 2.0]).abs_max(), Some(5.0));
+    /// ```
+    pub fn from_iter<I: IntoIterator<Item = f64>>(iter: I) -> Self {
+        iter.into_iter().fold(Self::default(), Self::push)
     }
 }
 
@@ -548,6 +617,16 @@ mod cov_tests {
         let mat = s.finalize().unwrap();
         assert!((mat[0][0] - 1.0).abs() < 1e-12);
     }
+
+    #[test]
+    fn from_iter_matches_fold() {
+        let via_fold = [[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]]
+            .into_iter()
+            .fold(RunningCov::<2>::default(), RunningCov::push);
+        let via_from = RunningCov::<2>::from_iter([[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]]);
+        assert_eq!(via_fold.count, via_from.count);
+        assert_eq!(via_fold.finalize(), via_from.finalize());
+    }
 }
 
 #[cfg(test)]
@@ -596,6 +675,16 @@ mod accumulate_tests {
     fn abs_max_nan_poisons() {
         let acc = AbsMaxAccum::default().push(10.0).push(f64::NAN).push(20.0);
         assert_eq!(acc.abs_max(), None);
+    }
+
+    #[test]
+    fn abs_min_from_iter() {
+        assert_eq!(AbsMinAccum::from_iter([3.0_f64, -1.0, 4.0]).abs_min(), Some(1.0));
+    }
+
+    #[test]
+    fn abs_max_from_iter() {
+        assert_eq!(AbsMaxAccum::from_iter([-5.0_f64, 2.0]).abs_max(), Some(5.0));
     }
 
     #[test]
