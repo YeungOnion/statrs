@@ -14,8 +14,7 @@ pub mod types;
 pub use distribution::{Entropy, Max, Median, Min, Mode, Moments, PopulationMoments, Skewness};
 pub use fold::Accumulate;
 pub use streaming::{
-    AbsMaxAccum, AbsMinAccum, CovAccum, MeanAccum, RunningCov, RunningMoments, SkewnessAccum,
-    VarianceAccum,
+    AbsMaxAccum, AbsMinAccum, CovAccum, MeanAccum, RunningCov, SkewnessAccum, VarianceAccum, kahan,
 };
 pub use summary::{abs_max, abs_min, covariance, geometric_mean, harmonic_mean, quadratic_mean};
 

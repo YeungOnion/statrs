@@ -2,14 +2,21 @@ use crate::Sealed;
 use crate::experimental_api::fold::Accumulate;
 use crate::experimental_api::{Moments, PopulationMoments, Skewness};
 
-/// data container for results of streaming moments of float sequence
-pub struct RunningMoments<const ORDER: usize> {
+/// Single-pass streaming accumulator for central moments via the Welford online algorithm.
+///
+/// `ORDER` controls which moments are tracked: `2` gives mean and variance,
+/// `3` additionally gives skewness. `COMPENSATED` selects Kahan error
+/// compensation on the moment accumulators; `true` (the default) trades a
+/// small constant overhead for better numerical stability on long streams or
+/// ill-conditioned data.
+pub struct RunningMoments<const ORDER: usize, const COMPENSATED: bool = true> {
     pub count: u64,
     m: [f64; ORDER],
+    /// Kahan compensation terms; zeroed and unused when `COMPENSATED = false`.
     c: [f64; ORDER],
 }
 
-impl<const ORDER: usize> Default for RunningMoments<ORDER> {
+impl<const ORDER: usize, const COMPENSATED: bool> Default for RunningMoments<ORDER, COMPENSATED> {
     fn default() -> Self {
         Self {
             count: 0,
@@ -19,7 +26,7 @@ impl<const ORDER: usize> Default for RunningMoments<ORDER> {
     }
 }
 
-impl<const ORDER: usize> RunningMoments<ORDER> {
+impl<const ORDER: usize, const COMPENSATED: bool> RunningMoments<ORDER, COMPENSATED> {
     /// Folds one observation into the accumulator (Welford online algorithm).
     ///
     /// Designed for use as an `Iterator::fold` accumulator:
@@ -33,11 +40,7 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
         let n = self.count as f64;
 
         // Welford / Pébaÿ (2008) central moment update.
-        // m[0] = running mean (M1)
-        // m[1] = sum of squared deviations (M2), if ORDER >= 2
-        // m[2] = sum of cubed deviations (M3), if ORDER >= 3
-        //
-        // Update order: M3 before M2 before M1; each increment uses the
+        // Update order: M3 before M2 before mean; each step uses the
         // previous observation's lower-order accumulators.
         let delta = x - self.m[0];
         let delta_n = delta / n;
@@ -45,26 +48,29 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
         let delta2 = x - new_mean;
 
         if let Some(&old_m2) = self.m.get(1) {
-            if self.m.get(2).is_some() {
-                let delta_n2 = delta_n * delta_n;
-                self.compensated_add(
-                    2,
-                    delta * delta_n2 * (n - 1.0) * (n - 2.0) - 3.0 * delta_n * old_m2,
-                );
+            if let Some(inc) = self.m.get(2).map(|_| {
+                delta * (delta_n * delta_n) * (n - 1.0) * (n - 2.0) - 3.0 * delta_n * old_m2
+            }) {
+                self.add(3, inc);
             }
-            self.compensated_add(1, delta * delta2);
+            self.add(2, delta * delta2);
         }
 
         self.m[0] = new_mean;
         self
     }
 
-    // Kahan-compensated add to m[k]: caller has verified k < ORDER.
-    fn compensated_add(&mut self, k: usize, inc: f64) {
-        let y = inc - self.c[k];
-        let t = self.m[k] + y;
-        self.c[k] = (t - self.m[k]) - y;
-        self.m[k] = t;
+    // `order` is the moment order: 2 => M2 (m[1]), 3 => M3 (m[2]), matching ORDER.
+    fn add(&mut self, order: usize, inc: f64) {
+        let k = order - 1;
+        if COMPENSATED {
+            let y = inc - self.c[k];
+            let t = self.m[k] + y;
+            self.c[k] = (t - self.m[k]) - y;
+            self.m[k] = t;
+        } else {
+            self.m[k] += inc;
+        }
     }
 
     /// Collects an iterator into an accumulator in a single pass.
@@ -80,10 +86,10 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
     }
 }
 
-impl Sealed for RunningMoments<2> {}
-impl Sealed for RunningMoments<3> {}
+impl<const COMPENSATED: bool> Sealed for RunningMoments<2, COMPENSATED> {}
+impl<const COMPENSATED: bool> Sealed for RunningMoments<3, COMPENSATED> {}
 
-impl Moments for RunningMoments<3> {
+impl<const COMPENSATED: bool> Moments for RunningMoments<3, COMPENSATED> {
     fn mean(&self) -> Option<f64> {
         if self.count == 0 {
             None
@@ -101,7 +107,7 @@ impl Moments for RunningMoments<3> {
     }
 }
 
-impl Skewness for RunningMoments<3> {
+impl<const COMPENSATED: bool> Skewness for RunningMoments<3, COMPENSATED> {
     fn skewness(&self) -> Option<f64> {
         if self.count < 2 {
             return None;
@@ -118,7 +124,7 @@ impl Skewness for RunningMoments<3> {
     }
 }
 
-impl Moments for RunningMoments<2> {
+impl<const COMPENSATED: bool> Moments for RunningMoments<2, COMPENSATED> {
     fn mean(&self) -> Option<f64> {
         if self.count == 0 {
             None
@@ -136,7 +142,7 @@ impl Moments for RunningMoments<2> {
     }
 }
 
-impl PopulationMoments for RunningMoments<2> {
+impl<const COMPENSATED: bool> PopulationMoments for RunningMoments<2, COMPENSATED> {
     fn population_variance(&self) -> Option<f64> {
         if self.count == 0 {
             None
@@ -146,7 +152,7 @@ impl PopulationMoments for RunningMoments<2> {
     }
 }
 
-impl PopulationMoments for RunningMoments<3> {
+impl<const COMPENSATED: bool> PopulationMoments for RunningMoments<3, COMPENSATED> {
     fn population_variance(&self) -> Option<f64> {
         if self.count == 0 {
             None
@@ -156,15 +162,16 @@ impl PopulationMoments for RunningMoments<3> {
     }
 }
 
-impl<const ORDER: usize> Accumulate for RunningMoments<ORDER> {
+impl<const ORDER: usize, const COMPENSATED: bool> Accumulate
+    for RunningMoments<ORDER, COMPENSATED>
+{
     fn push(self, x: f64) -> Self {
         RunningMoments::push(self, x)
     }
 }
 
-/// Single-pass mean accumulator. Alias for [`RunningMoments<2>`] — variance is
-/// computed alongside mean at no extra cost via Welford's algorithm.
-pub type MeanAccum = RunningMoments<2>;
+/// Single-pass mean accumulator (standard Welford). See [`kahan::MeanAccum`] for the compensated variant.
+pub type MeanAccum = RunningMoments<2, false>;
 
 /// Single-pass N-variable sample covariance matrix accumulator.
 ///
@@ -342,11 +349,28 @@ impl Accumulate for AbsMaxAccum {
     }
 }
 
-/// Single-pass mean and variance accumulator.
-pub type VarianceAccum = RunningMoments<2>;
+/// Single-pass mean and variance accumulator (standard Welford). See [`kahan::VarianceAccum`] for the compensated variant.
+pub type VarianceAccum = RunningMoments<2, false>;
 
-/// Single-pass mean, variance, and skewness accumulator.
-pub type SkewnessAccum = RunningMoments<3>;
+/// Single-pass mean, variance, and skewness accumulator (standard Welford). See [`kahan::SkewnessAccum`] for the compensated variant.
+pub type SkewnessAccum = RunningMoments<3, false>;
+
+/// Kahan-compensated variants of the streaming accumulators.
+///
+/// Use these when accumulating very long sequences or ill-conditioned data
+/// where standard Welford may lose precision. The [`RunningMoments`] type
+/// alias here fixes `COMPENSATED = true`; all other behaviour is identical
+/// to the top-level variants.
+pub mod kahan {
+    /// Kahan-compensated [`RunningMoments`][super::RunningMoments].
+    type RunningMoments<const ORDER: usize> = super::RunningMoments<ORDER, true>;
+    /// Kahan-compensated mean accumulator.
+    pub type MeanAccum = RunningMoments<2>;
+    /// Kahan-compensated mean and variance accumulator.
+    pub type VarianceAccum = RunningMoments<2>;
+    /// Kahan-compensated mean, variance, and skewness accumulator.
+    pub type SkewnessAccum = RunningMoments<3>;
+}
 
 #[cfg(test)]
 mod tests {
@@ -371,7 +395,7 @@ mod tests {
         };
         let data = [1.0_f64, 2.0, 3.0].iter();
         let (var, m) = match data.copied().try_fold(
-            (VarianceAccum::default(), f64::INFINITY),
+            (kahan::VarianceAccum::default(), f64::INFINITY),
             reducer as fn(_, _) -> _,
         ) {
             Ok((s, m)) => (s.variance().unwrap(), m),
@@ -512,7 +536,7 @@ mod tests {
         let s = data
             .iter()
             .copied()
-            .fold(VarianceAccum::default(), VarianceAccum::push);
+            .fold(kahan::VarianceAccum::default(), kahan::VarianceAccum::push);
         assert_eq!(s.count, 5);
         assert!((s.mean().unwrap() - 3.0).abs() < 1e-12);
     }
@@ -523,7 +547,7 @@ mod tests {
         let s = data
             .iter()
             .copied()
-            .fold(SkewnessAccum::default(), SkewnessAccum::push);
+            .fold(kahan::SkewnessAccum::default(), kahan::SkewnessAccum::push);
         assert_eq!(s.count, 3);
         assert!(s.skewness().is_some());
     }
@@ -679,7 +703,10 @@ mod accumulate_tests {
 
     #[test]
     fn abs_min_from_iter() {
-        assert_eq!(AbsMinAccum::from_iter([3.0_f64, -1.0, 4.0]).abs_min(), Some(1.0));
+        assert_eq!(
+            AbsMinAccum::from_iter([3.0_f64, -1.0, 4.0]).abs_min(),
+            Some(1.0)
+        );
     }
 
     #[test]
@@ -690,7 +717,7 @@ mod accumulate_tests {
     #[test]
     fn tuple_composition_variance_and_abs_min() {
         let data = [3.0_f64, -1.0, 4.0, -1.0, 5.0];
-        let (var, mn): (VarianceAccum, AbsMinAccum) = data
+        let (var, mn): (kahan::VarianceAccum, AbsMinAccum) = data
             .iter()
             .copied()
             .fold(Default::default(), Accumulate::push);
