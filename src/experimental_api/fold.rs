@@ -1,3 +1,17 @@
+/// A type that accumulates `f64` observations one at a time.
+///
+/// Impl on tuples of Accumulate to enable multiple statistics computed on single iterator pass
+///
+/// ```
+/// use statrs::experimental_api::{Accumulate, Moments, VarianceAccum, AbsMinAccum};
+///
+/// let data = [3.0_f64, -1.0, 4.0, 1.0, -5.0];
+/// let (var, mn): (VarianceAccum, AbsMinAccum) = data.iter().copied()
+///     .fold(Default::default(), Accumulate::push);
+///
+/// assert_eq!(mn.abs_min(), Some(1.0));
+/// assert!((var.variance().unwrap() - 12.8).abs() < 1e-10);
+/// ```
 pub trait Accumulate: Default + Sized {
     fn push(self, x: f64) -> Self;
 }
