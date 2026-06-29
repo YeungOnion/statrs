@@ -24,7 +24,9 @@
 //! #     }
 //! # }
 //! # impl InverseCdf for MyDist {
-//! #     fn search_bounds(&self) -> (f64, f64) { (0.0, 1.0) }
+//! #     fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
+//! #         self.try_variate(p.into_inner()).map_err(|_| InverseCdfError::OutOfSupport)
+//! #     }
 //! # }
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let d = MyDist;
@@ -36,9 +38,6 @@
 //! # }
 //! ```
 
-use crate::experimental_api::bisect::{
-    DEFAULT_MAX_ITER, Interval, SearchDirection, bisection_search,
-};
 use crate::experimental_api::types::{InvalidVariate, InverseCdfError, Probability, Variate};
 use crate::experimental_api::{ProbabilityDensity, ProbabilityMass};
 
@@ -92,40 +91,9 @@ pub trait ClosedFormCdf: TryVariate {
     fn cdf(&self, x: Variate<Self, Self::Repr>) -> Probability;
 }
 
-/// Inverse CDF for scalar continuous distributions (`Repr = f64`).
-///
-/// Implement `search_bounds` to get bisection-based inversion; override
-/// `inverse_cdf` for a closed form. If overriding, leave `search_bounds`
-/// as `unreachable!()`.
-pub trait InverseCdf: ClosedFormCdf + TryVariate<Repr = f64> {
-    /// Search interval `(lo, hi)` for bisection. Must lie within the support.
-    ///
-    /// For half-open upper bounds like `[1, 2)`, pass the open endpoint as
-    /// `hi` — if bisection lands on it, `try_variate` will reject the result.
-    fn search_bounds(&self) -> (Self::Repr, Self::Repr);
-
-    fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, Self::Repr>, InverseCdfError> {
-        let (lo, hi) = self.search_bounds();
-        bisection_search(
-            Interval { lo, hi },
-            |cut| {
-                let Ok(x) = self.try_variate(*cut) else {
-                    return SearchDirection::Right;
-                };
-                let diff = self.cdf(x).into_inner() - p.into_inner();
-                if diff.abs() < 1e-10 {
-                    SearchDirection::Found
-                } else if diff > 0.0 {
-                    SearchDirection::Left
-                } else {
-                    SearchDirection::Right
-                }
-            },
-            DEFAULT_MAX_ITER,
-        )
-        .and_then(|x| self.try_variate(x).ok())
-        .ok_or(InverseCdfError::NoConvergence)
-    }
+/// Inverse CDF. Implement directly — closed form or via [`bisect`][crate::experimental_api::bisect].
+pub trait InverseCdf: ClosedFormCdf {
+    fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, Self::Repr>, InverseCdfError>;
 }
 
 #[cfg(test)]
@@ -194,10 +162,6 @@ mod tests {
     }
 
     impl InverseCdf for Uniform12 {
-        fn search_bounds(&self) -> (f64, f64) {
-            (1.0, 2.0)
-        }
-
         fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
             self.try_variate(p.into_inner() + 1.0)
                 .map_err(|_| InverseCdfError::OutOfSupport)
@@ -265,6 +229,10 @@ mod tests {
 
     #[test]
     fn inverse_cdf_bisection_roundtrip() {
+        use crate::experimental_api::bisect::{
+            DEFAULT_MAX_ITER, Interval, SearchDirection, bisection_search,
+        };
+
         struct Uniform12Bisect;
 
         impl TryVariate for Uniform12Bisect {
@@ -285,8 +253,26 @@ mod tests {
         }
 
         impl InverseCdf for Uniform12Bisect {
-            fn search_bounds(&self) -> (f64, f64) {
-                (1.0, 2.0)
+            fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
+                bisection_search(
+                    Interval { lo: 1.0f64, hi: 2.0 },
+                    |cut| {
+                        let Ok(x) = self.try_variate(*cut) else {
+                            return SearchDirection::Right;
+                        };
+                        let diff = self.cdf(x).into_inner() - p.into_inner();
+                        if diff.abs() < 1e-10 {
+                            SearchDirection::Found
+                        } else if diff > 0.0 {
+                            SearchDirection::Left
+                        } else {
+                            SearchDirection::Right
+                        }
+                    },
+                    DEFAULT_MAX_ITER,
+                )
+                .and_then(|x| self.try_variate(x).ok())
+                .ok_or(InverseCdfError::NoConvergence)
             }
         }
 
