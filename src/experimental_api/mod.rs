@@ -11,7 +11,7 @@ pub mod summary;
 pub mod traits;
 pub mod types;
 
-pub use distribution::{Entropy, Max, Median, Min, Mode, Moments, Skewness};
+pub use distribution::{Entropy, Max, Median, Min, Mode, Moments, PopulationMoments, Skewness};
 pub use fold::FoldStat;
 pub use streaming::{MeanAccum, RunningMoments, SkewnessAccum, VarianceAccum};
 pub use summary::{abs_max, abs_min, geometric_mean, harmonic_mean, quadratic_mean};

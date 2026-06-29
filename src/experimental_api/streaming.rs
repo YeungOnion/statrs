@@ -1,4 +1,5 @@
-use crate::experimental_api::{Moments, Skewness};
+use crate::Sealed;
+use crate::experimental_api::{Moments, PopulationMoments, Skewness};
 
 pub struct RunningMoments<const ORDER: usize> {
     pub count: u64,
@@ -53,8 +54,8 @@ impl<const ORDER: usize> RunningMoments<ORDER> {
     }
 }
 
-impl crate::experimental_api::distribution::private::Sealed for RunningMoments<2> {}
-impl crate::experimental_api::distribution::private::Sealed for RunningMoments<3> {}
+impl Sealed for RunningMoments<2> {}
+impl Sealed for RunningMoments<3> {}
 
 impl Moments for RunningMoments<3> {
     fn mean(&self) -> Option<f64> {
@@ -109,6 +110,26 @@ impl Moments for RunningMoments<2> {
     }
 }
 
+impl PopulationMoments for RunningMoments<2> {
+    fn population_variance(&self) -> Option<f64> {
+        if self.count == 0 {
+            None
+        } else {
+            Some(self.m[1] / self.count as f64)
+        }
+    }
+}
+
+impl PopulationMoments for RunningMoments<3> {
+    fn population_variance(&self) -> Option<f64> {
+        if self.count == 0 {
+            None
+        } else {
+            Some(self.m[1] / self.count as f64)
+        }
+    }
+}
+
 /// Single-pass mean accumulator. Alias for [`RunningMoments<2>`] — variance is
 /// computed alongside mean at no extra cost via Welford's algorithm.
 pub type MeanAccum = RunningMoments<2>;
@@ -150,6 +171,41 @@ mod tests {
         };
         assert_eq!(var, 1.0);
         assert_eq!(m, 1.0);
+    }
+
+    #[test]
+    fn population_variance_empty_returns_none() {
+        assert_eq!(RunningMoments::<2>::default().population_variance(), None);
+    }
+
+    #[test]
+    fn population_variance_single_element() {
+        // population variance of one element is 0 (no spread)
+        let s = RunningMoments::<2>::default().push(5.0);
+        assert_eq!(s.population_variance(), Some(0.0));
+    }
+
+    #[test]
+    fn population_variance_known_dataset() {
+        // [2,4,4,4,5,5,7,9]: population variance = M2/n = 32/8 = 4.0
+        let data = [2.0_f64, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0];
+        let s = data
+            .iter()
+            .copied()
+            .fold(RunningMoments::<2>::default(), RunningMoments::push);
+        assert!((s.population_variance().unwrap() - 4.0).abs() < 1e-12);
+        assert!((s.population_std_dev().unwrap() - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn population_variance_less_than_sample_variance() {
+        // population variance uses N, sample uses N-1 — population is always smaller
+        let data = [1.0_f64, 2.0, 3.0, 4.0, 5.0];
+        let s = data
+            .iter()
+            .copied()
+            .fold(RunningMoments::<2>::default(), RunningMoments::push);
+        assert!(s.population_variance().unwrap() < s.variance().unwrap());
     }
 
     #[test]
