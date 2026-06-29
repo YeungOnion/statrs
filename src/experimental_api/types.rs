@@ -204,6 +204,7 @@ impl TryFrom<f64> for Probability {
 /// Construct via [`TryVariate::try_variate`].
 #[doc(alias = "domain")]
 #[doc(alias = "sample")]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Variate<D, B>(B, PhantomData<D>);
 
 impl<D, B: Copy> Variate<D, B> {
@@ -215,23 +216,6 @@ impl<D, B: Copy> Variate<D, B> {
     /// Constructs without a membership check; callers must ensure `x` is in-support.
     pub(crate) fn new(x: B) -> Self {
         Self(x, PhantomData)
-    }
-}
-
-impl<D, B: Copy> Copy for Variate<D, B> {}
-impl<D, B: Copy> Clone for Variate<D, B> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<D, B: PartialEq> PartialEq for Variate<D, B> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-impl<D, B: core::fmt::Debug> core::fmt::Debug for Variate<D, B> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("Variate").field(&self.0).finish()
     }
 }
 
