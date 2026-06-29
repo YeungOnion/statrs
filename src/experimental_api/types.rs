@@ -11,7 +11,7 @@
 //! # use statrs::experimental_api::{ClosedFormCdf, Variate, Probability, TryVariate, InvalidVariate};
 //! # struct A;
 //! # impl TryVariate for A {
-//! #     type Bound = f64;
+//! #     type Repr = f64;
 //! #     fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> { todo!() }
 //! # }
 //! # impl ClosedFormCdf for A { fn cdf(&self, x: Variate<Self, f64>) -> Probability { todo!() } }
@@ -23,13 +23,13 @@
 //! # use statrs::experimental_api::{ClosedFormCdf, Variate, Probability, TryVariate, InvalidVariate};
 //! # struct A;
 //! # impl TryVariate for A {
-//! #     type Bound = f64;
+//! #     type Repr = f64;
 //! #     fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> { todo!() }
 //! # }
 //! # impl ClosedFormCdf for A { fn cdf(&self, x: Variate<Self, f64>) -> Probability { todo!() } }
 //! # struct B;
 //! # impl TryVariate for B {
-//! #     type Bound = f64;
+//! #     type Repr = f64;
 //! #     fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> { todo!() }
 //! # }
 //! let b = B;

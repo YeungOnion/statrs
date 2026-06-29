@@ -387,7 +387,7 @@ impl Continuous<f64, f64> for Beta {
 
 #[cfg(feature = "experimental_api")]
 impl crate::experimental_api::TryVariate for Beta {
-    type Bound = f64;
+    type Repr = f64;
     fn try_variate(
         &self,
         x: f64,

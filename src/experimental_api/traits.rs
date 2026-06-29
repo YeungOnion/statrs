@@ -1,6 +1,6 @@
 //! Traits for CDF, PDF, PMF, inverse CDF, and variate validation.
 //!
-//! Methods take [`Variate<Self, Self::Bound>`] instead of raw values.
+//! Methods take [`Variate<Self, Self::Repr>`] instead of raw values.
 //! Validate once at the entry point with [`TryVariate::try_variate`]; the
 //! methods are infallible from there.
 //!
@@ -39,32 +39,33 @@
 use crate::experimental_api::bisect::{
     DEFAULT_MAX_ITER, Interval, SearchDirection, bisection_search,
 };
-use crate::experimental_api::types::{InverseCdfError, InvalidVariate, Probability, Variate};
+use crate::experimental_api::types::{InvalidVariate, InverseCdfError, Probability, Variate};
 use crate::experimental_api::{ProbabilityDensity, ProbabilityMass};
 
 /// Validates a raw value against a distribution's support, returning a [`Variate`].
 ///
-/// `Bound` is the sample-space element type — `f64` for continuous
-/// distributions, `u64` for discrete.
+/// `Repr` is the backing primitive of the sample space:
+/// - `f64` for continuous univariate continuous
+/// - `u64` for discrete.
 ///
 /// Call [`try_variate`][TryVariate::try_variate] at the boundary; pass the
 /// returned [`Variate`] to [`ClosedFormCdf::cdf`], [`Pdf::pdf`], etc.
 /// Passing it to a different distribution's methods is a compile error.
 pub trait TryVariate: Sized {
-    type Bound: Copy;
+    type Repr: Copy;
     fn try_variate(
         &self,
-        x: Self::Bound,
-    ) -> Result<Variate<Self, Self::Bound>, InvalidVariate<Self::Bound>>;
+        x: Self::Repr,
+    ) -> Result<Variate<Self, Self::Repr>, InvalidVariate<Self::Repr>>;
 }
 
 /// Probability density function.
 ///
 /// `ln_pdf` defaults to `pdf(x).into_inner().ln()`.
 pub trait Pdf: TryVariate {
-    fn pdf(&self, x: Variate<Self, Self::Bound>) -> ProbabilityDensity;
+    fn pdf(&self, x: Variate<Self, Self::Repr>) -> ProbabilityDensity;
 
-    fn ln_pdf(&self, x: Variate<Self, Self::Bound>) -> f64 {
+    fn ln_pdf(&self, x: Variate<Self, Self::Repr>) -> f64 {
         self.pdf(x).into_inner().ln()
     }
 }
@@ -73,37 +74,37 @@ pub trait Pdf: TryVariate {
 ///
 /// `ln_pmf` defaults to `pmf(x).into_inner().ln()`.
 pub trait Pmf: TryVariate {
-    fn pmf(&self, x: Variate<Self, Self::Bound>) -> ProbabilityMass;
+    fn pmf(&self, x: Variate<Self, Self::Repr>) -> ProbabilityMass;
 
-    fn ln_pmf(&self, x: Variate<Self, Self::Bound>) -> f64 {
+    fn ln_pmf(&self, x: Variate<Self, Self::Repr>) -> f64 {
         self.pmf(x).into_inner().ln()
     }
 }
 
 /// Cumulative distribution function.
 ///
-/// Takes [`Variate<Self, Self::Bound>`] rather than a raw value, so the
+/// Takes [`Variate<Self, Self::Repr>`] rather than a raw value, so the
 /// method is infallible.
 ///
 /// Note to implementors:
 /// If the method for Cdf evaluation is fallible, that should be a new trait.
 pub trait ClosedFormCdf: TryVariate {
-    fn cdf(&self, x: Variate<Self, Self::Bound>) -> Probability;
+    fn cdf(&self, x: Variate<Self, Self::Repr>) -> Probability;
 }
 
-/// Inverse CDF for scalar continuous distributions (`Bound = f64`).
+/// Inverse CDF for scalar continuous distributions (`Repr = f64`).
 ///
 /// Implement `search_bounds` to get bisection-based inversion; override
 /// `inverse_cdf` for a closed form. If overriding, leave `search_bounds`
 /// as `unreachable!()`.
-pub trait InverseCdf: ClosedFormCdf + TryVariate<Bound = f64> {
+pub trait InverseCdf: ClosedFormCdf + TryVariate<Repr = f64> {
     /// Search interval `(lo, hi)` for bisection. Must lie within the support.
     ///
     /// For half-open upper bounds like `[1, 2)`, pass the open endpoint as
     /// `hi` — if bisection lands on it, `try_variate` will reject the result.
-    fn search_bounds(&self) -> (f64, f64);
+    fn search_bounds(&self) -> (Self::Repr, Self::Repr);
 
-    fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
+    fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, Self::Repr>, InverseCdfError> {
         let (lo, hi) = self.search_bounds();
         bisection_search(
             Interval { lo, hi },
@@ -136,7 +137,7 @@ mod tests {
     struct UnitUniform;
 
     impl TryVariate for UnitUniform {
-        type Bound = f64;
+        type Repr = f64;
         fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
             if x.is_finite() && (0.0..=1.0).contains(&x) {
                 Ok(Variate::new(x))
@@ -156,7 +157,7 @@ mod tests {
     struct TenPoint;
 
     impl TryVariate for TenPoint {
-        type Bound = f64;
+        type Repr = f64;
         fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
             if x.is_finite() && x >= 0.0 && x <= 9.0 && x.fract() == 0.0 {
                 Ok(Variate::new(x))
@@ -176,7 +177,7 @@ mod tests {
     struct Uniform12;
 
     impl TryVariate for Uniform12 {
-        type Bound = f64;
+        type Repr = f64;
         fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
             if x.is_finite() && x >= 1.0 && x < 2.0 {
                 Ok(Variate::new(x))
@@ -267,7 +268,7 @@ mod tests {
         struct Uniform12Bisect;
 
         impl TryVariate for Uniform12Bisect {
-            type Bound = f64;
+            type Repr = f64;
             fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
                 if x.is_finite() && x >= 1.0 && x < 2.0 {
                     Ok(Variate::new(x))

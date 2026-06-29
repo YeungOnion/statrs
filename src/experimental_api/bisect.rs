@@ -52,7 +52,16 @@ impl PartitionSpace for Interval<f64> {
     }
 
     fn split(self, mid: &f64) -> (Self, Self) {
-        (Interval { lo: self.lo, hi: *mid }, Interval { lo: *mid, hi: self.hi })
+        (
+            Interval {
+                lo: self.lo,
+                hi: *mid,
+            },
+            Interval {
+                lo: *mid,
+                hi: self.hi,
+            },
+        )
     }
 
     fn is_atomic(&self) -> bool {
@@ -77,7 +86,16 @@ impl PartitionSpace for Interval<u64> {
     }
 
     fn split(self, mid: &u64) -> (Self, Self) {
-        (Interval { lo: self.lo, hi: *mid }, Interval { lo: *mid, hi: self.hi })
+        (
+            Interval {
+                lo: self.lo,
+                hi: *mid,
+            },
+            Interval {
+                lo: *mid,
+                hi: self.hi,
+            },
+        )
     }
 
     fn is_atomic(&self) -> bool {
@@ -101,45 +119,69 @@ mod tests {
 
     #[test]
     fn bisect_u64_finds_integer_sqrt() {
-        let space = Interval { lo: 0u64, hi: 100u64 };
-        let result = bisection_search(space, |cut| {
-            match cut.checked_mul(*cut) {
+        let space = Interval {
+            lo: 0u64,
+            hi: 100u64,
+        };
+        let result = bisection_search(
+            space,
+            |cut| match cut.checked_mul(*cut) {
                 Some(sq) if sq == 25 => SearchDirection::Found,
                 Some(sq) if sq > 25 => SearchDirection::Left,
                 _ => SearchDirection::Right,
-            }
-        }, DEFAULT_MAX_ITER);
+            },
+            DEFAULT_MAX_ITER,
+        );
         assert_eq!(result, Some(5));
     }
 
     #[test]
     fn bisect_u64_atomic_terminates() {
         let space = Interval { lo: 3u64, hi: 4u64 };
-        let result = bisection_search(space, |cut| {
-            match cut.checked_mul(*cut) {
+        let result = bisection_search(
+            space,
+            |cut| match cut.checked_mul(*cut) {
                 Some(sq) if sq == 9 => SearchDirection::Found,
                 Some(sq) if sq > 9 => SearchDirection::Left,
                 _ => SearchDirection::Right,
-            }
-        }, DEFAULT_MAX_ITER);
+            },
+            DEFAULT_MAX_ITER,
+        );
         assert_eq!(result, Some(3));
     }
 
     #[test]
     fn bisect_f64_finds_threshold() {
-        let space = Interval { lo: 0.0f64, hi: 1.0f64 };
-        let result = bisection_search(space, |cut| {
-            let diff = cut - 0.3;
-            if diff.abs() < 1e-10 { SearchDirection::Found }
-            else if diff > 0.0 { SearchDirection::Left }
-            else { SearchDirection::Right }
-        }, DEFAULT_MAX_ITER);
+        let space = Interval {
+            lo: 0.0f64,
+            hi: 1.0f64,
+        };
+        let result = bisection_search(
+            space,
+            |cut| {
+                let diff = cut - 0.3;
+                if diff.abs() < 1e-10 {
+                    SearchDirection::Found
+                } else if diff > 0.0 {
+                    SearchDirection::Left
+                } else {
+                    SearchDirection::Right
+                }
+            },
+            DEFAULT_MAX_ITER,
+        );
         assert!((result.unwrap() - 0.3).abs() < 1e-9);
     }
 
     #[test]
     fn interval_f64_is_never_atomic() {
-        assert!(!Interval { lo: 0.0f64, hi: 1e-300f64 }.is_atomic());
+        assert!(
+            !Interval {
+                lo: 0.0f64,
+                hi: 1e-300f64
+            }
+            .is_atomic()
+        );
     }
 
     #[test]
