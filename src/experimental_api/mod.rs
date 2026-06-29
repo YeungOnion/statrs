@@ -7,8 +7,8 @@ pub mod bisect;
 pub mod traits;
 pub mod types;
 
-pub use traits::{Cdf, InverseCdf, Pdf, Pmf};
+pub use traits::{ClosedFormCdf, InverseCdf, Pdf, Pmf, TryVariate};
 pub use types::{
-    CdfError, Domain, HasSupport, InvalidDensity, InvalidDomain, InvalidMass, InvalidProbability,
-    InverseCdfError, Probability, ProbabilityDensity, ProbabilityMass,
+    InvalidDensity, InvalidMass, InvalidProbability, InvalidVariate, InverseCdfError, Probability,
+    ProbabilityDensity, ProbabilityMass, Variate,
 };

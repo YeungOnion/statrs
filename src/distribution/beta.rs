@@ -386,16 +386,29 @@ impl Continuous<f64, f64> for Beta {
 }
 
 #[cfg(feature = "experimental_api")]
-impl crate::experimental_api::HasSupport for Beta {
+impl crate::experimental_api::TryVariate for Beta {
     type Bound = f64;
-    fn contains(x: f64) -> bool {
-        x.is_finite() && (0.0..=1.0).contains(&x)
+    fn try_variate(
+        &self,
+        x: f64,
+    ) -> Result<
+        crate::experimental_api::Variate<Self, f64>,
+        crate::experimental_api::InvalidVariate<f64>,
+    > {
+        if x.is_finite() && (0.0..=1.0).contains(&x) {
+            Ok(crate::experimental_api::Variate::new(x))
+        } else {
+            Err(crate::experimental_api::InvalidVariate(x))
+        }
     }
 }
 
 #[cfg(feature = "experimental_api")]
-impl crate::experimental_api::Cdf for Beta {
-    fn cdf(&self, x: crate::experimental_api::Domain<Self>) -> crate::experimental_api::Probability {
+impl crate::experimental_api::ClosedFormCdf for Beta {
+    fn cdf(
+        &self,
+        x: crate::experimental_api::Variate<Self, f64>,
+    ) -> crate::experimental_api::Probability {
         crate::experimental_api::Probability::new(ContinuousCDF::cdf(self, x.into_inner()))
             .expect("Beta CDF is always in [0, 1]")
     }

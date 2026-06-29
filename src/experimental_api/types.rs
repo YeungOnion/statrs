@@ -1,27 +1,41 @@
-//! Validated newtypes for probability values and distribution domains.
+//! Validated newtypes for probability values and distribution variates.
 //!
-//! [`Domain<D>`] ties a validated `f64` to a specific distribution via a phantom type
-//! parameter. Validate once at the boundary with `TryFrom`; after that the compiler
-//! enforces both that raw `f64` can't slip through and that values from one distribution
-//! can't be passed to another's methods.
+//! Call [`TryVariate::try_variate`] on a distribution to get a [`Variate<D, B>`].
+//! The phantom `D` prevents it from reaching a different distribution's
+//! methods; raw values can't reach [`ClosedFormCdf::cdf`], [`Pdf::pdf`], etc. directly.
+//!
+//! [`Variate`] construction is crate-internal; external [`TryVariate`]
+//! implementations are not yet supported.
 //!
 //! ```compile_fail
-//! # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
+//! # use statrs::experimental_api::{ClosedFormCdf, Variate, Probability, TryVariate, InvalidVariate};
 //! # struct A;
-//! # impl HasSupport for A { type Bound = f64; fn contains(x: f64) -> bool { x.is_finite() } }
-//! # impl Cdf for A { fn cdf(&self, x: Domain<Self>) -> Probability { todo!() } }
-//! A.cdf(0.5_f64); // expected Domain<A>, found f64
+//! # impl TryVariate for A {
+//! #     type Bound = f64;
+//! #     fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> { todo!() }
+//! # }
+//! # impl ClosedFormCdf for A { fn cdf(&self, x: Variate<Self, f64>) -> Probability { todo!() } }
+//! let a = A;
+//! a.cdf(0.5_f64); // expected Variate<A, f64>, found f64
 //! ```
 //!
 //! ```compile_fail
-//! # use statrs::experimental_api::{Cdf, Domain, HasSupport, Probability};
+//! # use statrs::experimental_api::{ClosedFormCdf, Variate, Probability, TryVariate, InvalidVariate};
 //! # struct A;
-//! # impl HasSupport for A { type Bound = f64; fn contains(x: f64) -> bool { x.is_finite() } }
-//! # impl Cdf for A { fn cdf(&self, x: Domain<Self>) -> Probability { todo!() } }
+//! # impl TryVariate for A {
+//! #     type Bound = f64;
+//! #     fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> { todo!() }
+//! # }
+//! # impl ClosedFormCdf for A { fn cdf(&self, x: Variate<Self, f64>) -> Probability { todo!() } }
 //! # struct B;
-//! # impl HasSupport for B { type Bound = f64; fn contains(x: f64) -> bool { x.is_finite() } }
-//! let x: Domain<B> = 0.5_f64.try_into().unwrap();
-//! A.cdf(x); // Domain<B> is not Domain<A>
+//! # impl TryVariate for B {
+//! #     type Bound = f64;
+//! #     fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> { todo!() }
+//! # }
+//! let b = B;
+//! let x: Variate<B, f64> = b.try_variate(0.5).unwrap();
+//! let a = A;
+//! a.cdf(x); // Variate<B, f64> is not Variate<A, f64>
 //! ```
 
 use core::marker::PhantomData;
@@ -48,19 +62,13 @@ pub struct InvalidDensity(pub f64);
 /// Error returned when a value is not a valid probability mass.
 pub struct InvalidMass(pub f64);
 
-/// Error returned by CDF computations.
-#[non_exhaustive]
-pub enum CdfError {
-    InvalidInput,
-}
-
 /// Error returned by inverse-CDF computations.
 #[non_exhaustive]
 pub enum InverseCdfError {
-    /// Used for search failures where inverse_cdf is not closed form.
+    /// The bisection search did not converge within the iteration limit.
     NoConvergence,
-    /// The exact inverse maps to a point outside the distribution's support
-    /// (e.g. `p = 1.0` for a half-open upper bound).
+    /// The inverse falls outside the support, e.g. `p = 1.0` with a
+    /// half-open upper bound.
     OutOfSupport,
 }
 
@@ -143,21 +151,6 @@ impl core::fmt::Display for InvalidMass {
     }
 }
 
-impl core::fmt::Debug for CdfError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            CdfError::InvalidInput => write!(f, "CdfError::InvalidInput"),
-        }
-    }
-}
-impl core::fmt::Display for CdfError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            CdfError::InvalidInput => write!(f, "invalid input to cdf"),
-        }
-    }
-}
-
 impl core::fmt::Debug for InverseCdfError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -184,92 +177,7 @@ impl std::error::Error for InvalidDensity {}
 #[cfg(feature = "std")]
 impl std::error::Error for InvalidMass {}
 #[cfg(feature = "std")]
-impl std::error::Error for CdfError {}
-#[cfg(feature = "std")]
 impl std::error::Error for InverseCdfError {}
-
-// ---- Domain validation ----
-
-/// Static support membership for distributions whose bounds are type-level constants.
-///
-/// `Bound` is the type of values that can assert membership and act as bisection
-/// boundaries. All near-term impls use `Bound = f64`.
-pub trait HasSupport {
-    type Bound: Copy;
-    fn contains(x: Self::Bound) -> bool;
-}
-
-/// A value known to lie within distribution `D`'s support.
-///
-/// Construct via `TryFrom<D::Bound>` or the equivalent `try_into()`.
-pub struct Domain<D: HasSupport>(D::Bound, PhantomData<D>);
-
-impl<D: HasSupport> Domain<D> {
-    pub fn into_inner(self) -> D::Bound {
-        self.0
-    }
-}
-
-impl<D: HasSupport> Copy for Domain<D> {}
-impl<D: HasSupport> Clone for Domain<D> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<D: HasSupport> PartialEq for Domain<D>
-where
-    D::Bound: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-impl<D: HasSupport> core::fmt::Debug for Domain<D>
-where
-    D::Bound: core::fmt::Debug,
-{
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("Domain").field(&self.0).finish()
-    }
-}
-
-/// Error returned when a value falls outside a distribution's support.
-pub struct InvalidDomain<B>(pub B);
-
-impl<B: core::fmt::Display> core::fmt::Debug for InvalidDomain<B> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "InvalidDomain({})", self.0)
-    }
-}
-impl<B: core::fmt::Display> core::fmt::Display for InvalidDomain<B> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "value {} is outside the distribution's support", self.0)
-    }
-}
-#[cfg(feature = "std")]
-impl<B: core::fmt::Display> std::error::Error for InvalidDomain<B> {}
-
-impl<D: HasSupport<Bound = f64>> TryFrom<f64> for Domain<D> {
-    type Error = InvalidDomain<f64>;
-    fn try_from(x: f64) -> Result<Self, Self::Error> {
-        if D::contains(x) {
-            Ok(Self(x, PhantomData))
-        } else {
-            Err(InvalidDomain(x))
-        }
-    }
-}
-
-impl<D: HasSupport<Bound = u64>> TryFrom<u64> for Domain<D> {
-    type Error = InvalidDomain<u64>;
-    fn try_from(x: u64) -> Result<Self, Self::Error> {
-        if D::contains(x) {
-            Ok(Self(x, PhantomData))
-        } else {
-            Err(InvalidDomain(x))
-        }
-    }
-}
 
 impl TryFrom<f64> for Probability {
     type Error = InvalidProbability;
@@ -278,6 +186,67 @@ impl TryFrom<f64> for Probability {
     }
 }
 
+// ---- Variate ----
+
+/// A value of a random variable, validated against distribution `D`'s support.
+///
+/// `D` is a phantom type tying this value to a specific distribution —
+/// `Variate<Beta, f64>` and `Variate<Normal, f64>` are distinct types even
+/// though both wrap an `f64`.
+///
+/// `B` is the type backing the sample space:
+/// - `f64` for continuous univariate
+/// - `u64` for discrete
+///
+/// Construct via [`TryVariate::try_variate`].
+#[doc(alias = "domain")]
+#[doc(alias = "sample")]
+pub struct Variate<D, B>(B, PhantomData<D>);
+
+impl<D, B: Copy> Variate<D, B> {
+    /// Returns the inner value, consuming the wrapper.
+    pub fn into_inner(self) -> B {
+        self.0
+    }
+
+    /// Constructs without a membership check; callers must ensure `x` is in-support.
+    pub(crate) fn new(x: B) -> Self {
+        Self(x, PhantomData)
+    }
+}
+
+impl<D, B: Copy> Copy for Variate<D, B> {}
+impl<D, B: Copy> Clone for Variate<D, B> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<D, B: PartialEq> PartialEq for Variate<D, B> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl<D, B: core::fmt::Debug> core::fmt::Debug for Variate<D, B> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("Variate").field(&self.0).finish()
+    }
+}
+
+/// Error returned when a value falls outside a distribution's support.
+pub struct InvalidVariate<B>(pub B);
+
+impl<B: core::fmt::Display> core::fmt::Debug for InvalidVariate<B> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "InvalidVariate({})", self.0)
+    }
+}
+impl<B: core::fmt::Display> core::fmt::Display for InvalidVariate<B> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "value {} is outside the distribution's support", self.0)
+    }
+}
+#[cfg(feature = "std")]
+impl<B: core::fmt::Display> std::error::Error for InvalidVariate<B> {}
 
 #[cfg(test)]
 mod tests {

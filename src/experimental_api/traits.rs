@@ -1,121 +1,121 @@
-//! Trait definitions for CDF, PDF, PMF, and inverse CDF.
+//! Traits for CDF, PDF, PMF, inverse CDF, and variate validation.
 //!
-//! All methods take [`Domain<Self>`][crate::experimental_api::Domain] rather than raw `f64`.
-//! Validation happens once at the call boundary via `TryFrom`; from there `?` propagates
-//! errors and the trait methods themselves are infallible or return only convergence errors.
+//! Methods take [`Variate<Self, Self::Bound>`] instead of raw values.
+//! Validate once at the entry point with [`TryVariate::try_variate`]; the
+//! methods are infallible from there.
 //!
-//! ```
-//! # use statrs::experimental_api::{Cdf, InverseCdf, Domain, HasSupport, Probability};
+//! ```ignore
+//! // Implementing TryVariate requires Variate::new, which is pub(crate).
+//! // See the tests module in this file for a full worked example.
+//! # use statrs::experimental_api::{ClosedFormCdf, InverseCdf, Variate, TryVariate, Probability, InvalidVariate};
 //! # struct MyDist;
-//! # impl HasSupport for MyDist {
-//! #     type Bound = f64;
-//! #     fn contains(x: f64) -> bool { x.is_finite() && (0.0..=1.0).contains(&x) }
+//! # impl TryVariate for MyDist {
+//! #     fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
+//! #         if x.is_finite() && (0.0..=1.0).contains(&x) {
+//! #             Ok(Variate::new(x))
+//! #         } else {
+//! #             Err(InvalidVariate(x))
+//! #         }
+//! #     }
 //! # }
-//! # impl Cdf for MyDist {
-//! #     fn cdf(&self, x: Domain<Self>) -> Probability { Probability::new(x.into_inner()).unwrap() }
+//! # impl ClosedFormCdf for MyDist {
+//! #     fn cdf(&self, x: Variate<Self, f64>) -> Probability {
+//! #         Probability::new(x.into_inner()).unwrap()
+//! #     }
 //! # }
 //! # impl InverseCdf for MyDist {
 //! #     fn search_bounds(&self) -> (f64, f64) { (0.0, 1.0) }
 //! # }
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let d = MyDist;
-//! let x: Domain<_> = 0.6_f64.try_into()?; // validate at the boundary
-//! let p = d.cdf(x);                         // infallible
-//! let x2 = d.inverse_cdf(p)?;              // Domain<MyDist> — passes directly back to cdf
+//! let x: Variate<_> = d.try_variate(0.6)?;  // validate at the boundary
+//! let p = d.cdf(x);                          // infallible from here
+//! let x2 = d.inverse_cdf(p)?;               // Variate<MyDist, f64> — passes directly back to cdf
 //! let _ = d.cdf(x2);
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! The existing distributions delegate to their current implementations, so both APIs
-//! agree on values. Here `Beta` shows the contrast — the old CDF takes raw `f64` and
-//! can panic; the new one takes a validated `Domain<Beta>` and is infallible:
-//!
-//! ```
-//! # use statrs::distribution::{Beta, ContinuousCDF};
-//! # use statrs::experimental_api::{Cdf, Domain};
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let dist = Beta::new(2.0, 5.0)?;
-//! let raw = 0.3_f64;
-//!
-//! let old: f64 = ContinuousCDF::cdf(&dist, raw);       // accepts f64, can panic
-//! let x: Domain<Beta> = raw.try_into()?;
-//! let new: f64 = Cdf::cdf(&dist, x).into_inner();      // accepts Domain<Beta>, infallible
-//!
-//! assert!((old - new).abs() < f64::EPSILON);
 //! # Ok(())
 //! # }
 //! ```
 
 use crate::experimental_api::bisect::{
-    bisection_search, Interval, SearchDirection, DEFAULT_MAX_ITER,
+    DEFAULT_MAX_ITER, Interval, SearchDirection, bisection_search,
 };
-use crate::experimental_api::types::{
-    Domain, HasSupport, InverseCdfError, Probability, ProbabilityDensity, ProbabilityMass,
-};
+use crate::experimental_api::types::{InverseCdfError, InvalidVariate, Probability, Variate};
+use crate::experimental_api::{ProbabilityDensity, ProbabilityMass};
 
-/// PDF for distributions whose support is encoded in the type.
+/// Validates a raw value against a distribution's support, returning a [`Variate`].
 ///
-/// `ln_pdf` has a default implementation via `pdf`.
-pub trait Pdf: HasSupport + Sized {
-    fn pdf(&self, x: Domain<Self>) -> ProbabilityDensity;
+/// `Bound` is the sample-space element type — `f64` for continuous
+/// distributions, `u64` for discrete.
+///
+/// Call [`try_variate`][TryVariate::try_variate] at the boundary; pass the
+/// returned [`Variate`] to [`ClosedFormCdf::cdf`], [`Pdf::pdf`], etc.
+/// Passing it to a different distribution's methods is a compile error.
+pub trait TryVariate: Sized {
+    type Bound: Copy;
+    fn try_variate(
+        &self,
+        x: Self::Bound,
+    ) -> Result<Variate<Self, Self::Bound>, InvalidVariate<Self::Bound>>;
+}
 
-    fn ln_pdf(&self, x: Domain<Self>) -> f64 {
+/// Probability density function.
+pub trait Pdf: TryVariate {
+    fn pdf(&self, x: Variate<Self, Self::Bound>) -> ProbabilityDensity;
+
+    fn ln_pdf(&self, x: Variate<Self, Self::Bound>) -> f64 {
         self.pdf(x).into_inner().ln()
     }
 }
 
-/// PMF for distributions whose support is encoded in the type.
-///
-/// `ln_pmf` has a default implementation via `pmf`.
-pub trait Pmf: HasSupport + Sized {
-    fn pmf(&self, x: Domain<Self>) -> ProbabilityMass;
+/// Probability mass function.
+pub trait Pmf: TryVariate {
+    fn pmf(&self, x: Variate<Self, Self::Bound>) -> ProbabilityMass;
 
-    fn ln_pmf(&self, x: Domain<Self>) -> f64 {
+    fn ln_pmf(&self, x: Variate<Self, Self::Bound>) -> f64 {
         self.pmf(x).into_inner().ln()
     }
 }
 
-/// CDF for distributions whose support is encoded in the type.
+/// Cumulative distribution function.
 ///
-/// The return is infallible: `Domain<Self>` is proof the input is in-support.
-pub trait Cdf: HasSupport + Sized {
-    fn cdf(&self, x: Domain<Self>) -> Probability;
+/// See also [`InverseCdf`] for the complementary direction, and [`TryVariate`] for
+/// validating args to this method.
+pub trait ClosedFormCdf: TryVariate {
+    fn cdf(&self, x: Variate<Self, Self::Bound>) -> Probability;
 }
 
-/// Inverse CDF extending [`Cdf`].
+/// Inverse CDF for scalar continuous distributions (`Bound = f64`).
 ///
-/// Implement `search_bounds` to get a bisection-based `inverse_cdf` by default,
-/// or override it with a closed-form solution. Distributions whose search space
-/// is not a scalar interval (e.g. Dirichlet) should override `inverse_cdf` directly
-/// and leave `search_bounds` unreachable.
-pub trait InverseCdf: Cdf {
-    /// The `(lo, hi)` bounds within which bisection searches for the inverse.
+/// Implement `search_bounds` to get bisection-based inversion; override
+/// `inverse_cdf` for a closed form. If overriding, leave `search_bounds`
+/// as `unreachable!()`.
+pub trait InverseCdf: ClosedFormCdf + TryVariate<Bound = f64> {
+    /// Search interval `(lo, hi)` for bisection. Must lie within the support.
     ///
-    /// Must be a subset of the support. For half-open upper bounds (e.g. `[1, 2)`)
-    /// use the open endpoint as `hi` — bisection never lands exactly there, and
-    /// `Domain::try_from` rejects it if it does.
+    /// For half-open upper bounds like `[1, 2)`, pass the open endpoint as
+    /// `hi` — if bisection lands on it, `try_variate` will reject the result.
     fn search_bounds(&self) -> (f64, f64);
 
-    fn inverse_cdf(&self, p: Probability) -> Result<Domain<Self>, InverseCdfError>
-    where
-        Self: HasSupport<Bound = f64>,
-    {
+    fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
         let (lo, hi) = self.search_bounds();
-        bisection_search(Interval { lo, hi }, |cut| {
-            let Ok(x) = Domain::try_from(*cut) else {
-                return SearchDirection::Right;
-            };
-            let diff = self.cdf(x).into_inner() - p.into_inner();
-            if diff.abs() < 1e-10 {
-                SearchDirection::Found
-            } else if diff > 0.0 {
-                SearchDirection::Left
-            } else {
-                SearchDirection::Right
-            }
-        }, DEFAULT_MAX_ITER)
-        .and_then(|x| Domain::try_from(x).ok())
+        bisection_search(
+            Interval { lo, hi },
+            |cut| {
+                let Ok(x) = self.try_variate(*cut) else {
+                    return SearchDirection::Right;
+                };
+                let diff = self.cdf(x).into_inner() - p.into_inner();
+                if diff.abs() < 1e-10 {
+                    SearchDirection::Found
+                } else if diff > 0.0 {
+                    SearchDirection::Left
+                } else {
+                    SearchDirection::Right
+                }
+            },
+            DEFAULT_MAX_ITER,
+        )
+        .and_then(|x| self.try_variate(x).ok())
         .ok_or(InverseCdfError::NoConvergence)
     }
 }
@@ -123,21 +123,64 @@ pub trait InverseCdf: Cdf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::experimental_api::types::{
-        InvalidDomain, Probability, ProbabilityDensity, ProbabilityMass,
-    };
+    use crate::experimental_api::types::{InvalidVariate, ProbabilityDensity, ProbabilityMass};
 
-    struct Uniform12;
+    // Continuous uniform on [0, 1].
+    struct UnitUniform;
 
-    impl HasSupport for Uniform12 {
+    impl TryVariate for UnitUniform {
         type Bound = f64;
-        fn contains(x: f64) -> bool {
-            x.is_finite() && x >= 1.0 && x < 2.0
+        fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
+            if x.is_finite() && (0.0..=1.0).contains(&x) {
+                Ok(Variate::new(x))
+            } else {
+                Err(InvalidVariate(x))
+            }
         }
     }
 
-    impl Cdf for Uniform12 {
-        fn cdf(&self, x: Domain<Self>) -> Probability {
+    impl Pdf for UnitUniform {
+        fn pdf(&self, _x: Variate<Self, f64>) -> ProbabilityDensity {
+            ProbabilityDensity::new(1.0).unwrap()
+        }
+    }
+
+    // Discrete uniform on {0, 1, ..., 9}.
+    struct TenPoint;
+
+    impl TryVariate for TenPoint {
+        type Bound = f64;
+        fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
+            if x.is_finite() && x >= 0.0 && x <= 9.0 && x.fract() == 0.0 {
+                Ok(Variate::new(x))
+            } else {
+                Err(InvalidVariate(x))
+            }
+        }
+    }
+
+    impl Pmf for TenPoint {
+        fn pmf(&self, _x: Variate<Self, f64>) -> ProbabilityMass {
+            ProbabilityMass::new(0.1).unwrap()
+        }
+    }
+
+    // Uniform on [1, 2) — used to test both closed-form and bisection inverse_cdf.
+    struct Uniform12;
+
+    impl TryVariate for Uniform12 {
+        type Bound = f64;
+        fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
+            if x.is_finite() && x >= 1.0 && x < 2.0 {
+                Ok(Variate::new(x))
+            } else {
+                Err(InvalidVariate(x))
+            }
+        }
+    }
+
+    impl ClosedFormCdf for Uniform12 {
+        fn cdf(&self, x: Variate<Self, f64>) -> Probability {
             Probability::new(x.into_inner() - 1.0).expect("x - 1 ∈ [0,1) for x ∈ [1,2)")
         }
     }
@@ -147,91 +190,60 @@ mod tests {
             (1.0, 2.0)
         }
 
-        fn inverse_cdf(&self, p: Probability) -> Result<Domain<Self>, InverseCdfError> {
-            (p.into_inner() + 1.0)
-                .try_into()
-                .map_err(|_: InvalidDomain<f64>| InverseCdfError::OutOfSupport)
-        }
-    }
-
-    // Continuous uniform on [0, 1].
-    struct UnitUniform;
-    impl HasSupport for UnitUniform {
-        type Bound = f64;
-        fn contains(x: f64) -> bool {
-            x.is_finite() && (0.0..=1.0).contains(&x)
-        }
-    }
-    impl Pdf for UnitUniform {
-        fn pdf(&self, _x: Domain<Self>) -> ProbabilityDensity {
-            ProbabilityDensity::new(1.0).unwrap()
-        }
-    }
-
-    // Discrete uniform on {0, 1, ..., 9}.
-    struct TenPoint;
-    impl HasSupport for TenPoint {
-        type Bound = f64;
-        fn contains(x: f64) -> bool {
-            x.is_finite() && x >= 0.0 && x <= 9.0 && x.fract() == 0.0
-        }
-    }
-    impl Pmf for TenPoint {
-        fn pmf(&self, _x: Domain<Self>) -> ProbabilityMass {
-            ProbabilityMass::new(0.1).unwrap()
+        fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
+            self.try_variate(p.into_inner() + 1.0)
+                .map_err(|_| InverseCdfError::OutOfSupport)
         }
     }
 
     #[test]
     fn pdf_unit_uniform_is_one() {
         let d = UnitUniform;
-        let x: Domain<_> = 0.5_f64.try_into().unwrap();
+        let x = d.try_variate(0.5).unwrap();
         assert_eq!(d.pdf(x).into_inner(), 1.0);
     }
 
     #[test]
     fn ln_pdf_default_impl() {
         let d = UnitUniform;
-        let x: Domain<_> = 0.5_f64.try_into().unwrap();
+        let x = d.try_variate(0.5).unwrap();
         assert!((d.ln_pdf(x) - 0.0_f64).abs() < 1e-12);
     }
 
     #[test]
     fn pdf_rejects_out_of_support() {
-        let r: Result<Domain<UnitUniform>, _> = 1.5_f64.try_into();
-        assert!(r.is_err());
+        assert!(UnitUniform.try_variate(1.5).is_err());
     }
 
     #[test]
     fn pmf_ten_point_is_one_tenth() {
         let d = TenPoint;
-        let x: Domain<_> = 3.0_f64.try_into().unwrap();
+        let x = d.try_variate(3.0).unwrap();
         assert!((d.pmf(x).into_inner() - 0.1).abs() < 1e-12);
     }
 
     #[test]
     fn ln_pmf_default_impl() {
         let d = TenPoint;
-        let x: Domain<_> = 7.0_f64.try_into().unwrap();
+        let x = d.try_variate(7.0).unwrap();
         assert!((d.ln_pmf(x) - 0.1_f64.ln()).abs() < 1e-12);
     }
 
     #[test]
     fn pmf_rejects_non_integer() {
-        let r: Result<Domain<TenPoint>, _> = 2.5_f64.try_into();
-        assert!(r.is_err());
+        assert!(TenPoint.try_variate(2.5).is_err());
     }
 
     #[test]
     fn cdf_midpoint() {
         let d = Uniform12;
-        let x: Domain<_> = 1.5_f64.try_into().unwrap();
+        let x = d.try_variate(1.5).unwrap();
         assert_eq!(d.cdf(x).into_inner(), 0.5);
     }
 
     #[test]
     fn cdf_lower_boundary() {
-        let x: Domain<Uniform12> = 1.0_f64.try_into().unwrap();
+        let x = Uniform12.try_variate(1.0).unwrap();
         assert_eq!(Uniform12.cdf(x).into_inner(), 0.0);
     }
 
@@ -246,17 +258,24 @@ mod tests {
     #[test]
     fn inverse_cdf_bisection_roundtrip() {
         struct Uniform12Bisect;
-        impl HasSupport for Uniform12Bisect {
+
+        impl TryVariate for Uniform12Bisect {
             type Bound = f64;
-            fn contains(x: f64) -> bool {
-                x.is_finite() && x >= 1.0 && x < 2.0
+            fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
+                if x.is_finite() && x >= 1.0 && x < 2.0 {
+                    Ok(Variate::new(x))
+                } else {
+                    Err(InvalidVariate(x))
+                }
             }
         }
-        impl Cdf for Uniform12Bisect {
-            fn cdf(&self, x: Domain<Self>) -> Probability {
+
+        impl ClosedFormCdf for Uniform12Bisect {
+            fn cdf(&self, x: Variate<Self, f64>) -> Probability {
                 Probability::new(x.into_inner() - 1.0).unwrap()
             }
         }
+
         impl InverseCdf for Uniform12Bisect {
             fn search_bounds(&self) -> (f64, f64) {
                 (1.0, 2.0)
@@ -277,19 +296,14 @@ mod tests {
 
     #[test]
     fn domain_rejects_out_of_support() {
-        let r: Result<Domain<Uniform12>, _> = 0.5_f64.try_into();
-        assert!(r.is_err());
-        let r: Result<Domain<Uniform12>, _> = 2.0_f64.try_into();
-        assert!(r.is_err());
-        let r: Result<Domain<Uniform12>, _> = f64::NAN.try_into();
-        assert!(r.is_err());
+        assert!(Uniform12.try_variate(0.5).is_err());
+        assert!(Uniform12.try_variate(2.0).is_err());
+        assert!(Uniform12.try_variate(f64::NAN).is_err());
     }
 
     #[test]
     fn domain_accepts_lower_rejects_upper_bound() {
-        let lo: Result<Domain<Uniform12>, _> = 1.0_f64.try_into();
-        assert!(lo.is_ok());
-        let hi: Result<Domain<Uniform12>, _> = 2.0_f64.try_into();
-        assert!(hi.is_err());
+        assert!(Uniform12.try_variate(1.0).is_ok());
+        assert!(Uniform12.try_variate(2.0).is_err());
     }
 }
