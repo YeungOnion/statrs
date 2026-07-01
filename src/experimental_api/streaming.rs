@@ -175,31 +175,38 @@ pub type MeanAccum = RunningMoments<2, false>;
 
 /// Single-pass N-variable sample covariance matrix accumulator.
 ///
+/// `COMPENSATED` selects Kahan error compensation on the cross-product
+/// accumulators; `true` provides better numerical stability on long streams
+/// or ill-conditioned data. Most users will not need this.
+///
 /// `push` updates only the upper triangle of the cross-product matrix;
 /// `finalize` mirrors it to the lower triangle and scales by `n − 1`.
 ///
 /// Compose with [`RunningMoments`] via `fold` to get means and the covariance
 /// matrix in one pass.
-pub struct RunningCov<const N: usize> {
+pub struct RunningCov<const N: usize, const COMPENSATED: bool = false> {
     pub count: u64,
     mean: [f64; N],
     /// Upper triangle of the running cross-product matrix (Welford online).
     /// `c[i][j]` is only maintained for `j >= i`; lower triangle is zeroed
     /// until `finalize` fills it in.
-    c: [[f64; N]; N],
+    cov: [[f64; N]; N],
+    /// Kahan compensation terms for `c`; zeroed and unused when `COMPENSATED = false`.
+    comp: [[f64; N]; N],
 }
 
-impl<const N: usize> Default for RunningCov<N> {
+impl<const N: usize, const COMPENSATED: bool> Default for RunningCov<N, COMPENSATED> {
     fn default() -> Self {
         Self {
             count: 0,
             mean: [0.0; N],
-            c: [[0.0; N]; N],
+            cov: [[0.0; N]; N],
+            comp: [[0.0; N]; N],
         }
     }
 }
 
-impl<const N: usize> RunningCov<N> {
+impl<const N: usize, const COMPENSATED: bool> RunningCov<N, COMPENSATED> {
     /// Folds one observation vector into the accumulator.
     ///
     /// Designed for use as an `Iterator::fold` accumulator:
@@ -223,21 +230,34 @@ impl<const N: usize> RunningCov<N> {
         // delta2[j] = x[j] - new_mean[j]; only upper triangle (j >= i)
         for i in 0..N {
             for j in i..N {
-                self.c[i][j] += delta[i] * (x[j] - self.mean[j]);
+                let inc = delta[i] * (x[j] - self.mean[j]);
+                self.add(i, j, inc);
             }
         }
 
         self
     }
 
+    fn add(&mut self, i: usize, j: usize, inc: f64) {
+        if COMPENSATED {
+            let y = inc - self.comp[i][j];
+            let t = self.cov[i][j] + y;
+            self.comp[i][j] = (t - self.cov[i][j]) - y;
+            self.cov[i][j] = t;
+        } else {
+            self.cov[i][j] += inc;
+        }
+    }
+
     /// Collects an iterator of observation vectors into an accumulator in a single pass.
     ///
     /// ```
     /// # use statrs::experimental_api::CovAccum;
+    /// use approx::assert_abs_diff_eq;
     /// let mat = CovAccum::<2>::from_iter([[1.0_f64, 6.0], [3.0, 4.0], [5.0, 2.0]])
     ///     .finalize()
     ///     .unwrap();
-    /// assert!((mat[0][1] + 4.0).abs() < 1e-12); // negative correlation
+    /// assert_abs_diff_eq!(mat[0][1], -4.0);
     /// ```
     pub fn from_iter<I: IntoIterator<Item = [f64; N]>>(iter: I) -> Self {
         iter.into_iter().fold(Self::default(), Self::push)
@@ -246,7 +266,7 @@ impl<const N: usize> RunningCov<N> {
     /// Returns the sample covariance matrix (normalised by `n − 1`), or
     /// `None` if fewer than two observations have been pushed.
     ///
-    /// Mirrors the upper triangle to the lower triangle before returning.
+    /// Ensures symmetric before returning;
     pub fn finalize(mut self) -> Option<[[f64; N]; N]> {
         if self.count < 2 {
             return None;
@@ -254,16 +274,18 @@ impl<const N: usize> RunningCov<N> {
         let denom = (self.count - 1) as f64;
         for i in 0..N {
             for j in i..N {
-                self.c[i][j] /= denom;
-                self.c[j][i] = self.c[i][j];
+                self.cov[i][j] /= denom;
+                self.cov[j][i] = self.cov[i][j];
             }
         }
-        Some(self.c)
+        Some(self.cov)
     }
 }
 
-/// Type alias for a covariance accumulator over `N` variables.
-pub type CovAccum<const N: usize> = RunningCov<N>;
+/// Type alias for a covariance accumulator over `N` variables (standard, uncompensated).
+///
+/// See [`kahan::CovAccum`] for the Kahan-compensated variant.
+pub type CovAccum<const N: usize> = RunningCov<N, false>;
 
 /// Single-pass absolute minimum accumulator.
 ///
@@ -370,6 +392,8 @@ pub mod kahan {
     pub type VarianceAccum = RunningMoments<2>;
     /// Kahan-compensated mean, variance, and skewness accumulator.
     pub type SkewnessAccum = RunningMoments<3>;
+    /// Kahan-compensated covariance matrix accumulator over `N` variables.
+    pub type CovAccum<const N: usize> = super::RunningCov<N, true>;
 }
 
 #[cfg(test)]
@@ -650,6 +674,18 @@ mod cov_tests {
         let via_from = RunningCov::<2>::from_iter([[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]]);
         assert_eq!(via_fold.count, via_from.count);
         assert_eq!(via_fold.finalize(), via_from.finalize());
+    }
+
+    #[test]
+    fn compensated_matches_uncompensated_on_clean_data() {
+        let data = [[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]];
+        let uncompensated = RunningCov::<2, false>::from_iter(data).finalize().unwrap();
+        let compensated = kahan::CovAccum::<2>::from_iter(data).finalize().unwrap();
+        for i in 0..2 {
+            for j in 0..2 {
+                assert!((uncompensated[i][j] - compensated[i][j]).abs() < 1e-12);
+            }
+        }
     }
 }
 
