@@ -4,7 +4,7 @@
 /// so multiple statistics can share a single iterator pass:
 ///
 /// ```
-/// use statrs::experimental_api::{Accumulate, Moments, VarianceAccum, AbsMinAccum};
+/// use statrs::experimental_api::{Accumulate, Variance, VarianceAccum, AbsMinAccum};
 ///
 /// let data = [3.0_f64, -1.0, 4.0, 1.0, -5.0];
 /// let (var, mn): (VarianceAccum, AbsMinAccum) = data.iter().copied()

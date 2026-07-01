@@ -1,6 +1,6 @@
 use crate::Sealed;
 use crate::experimental_api::fold::Accumulate;
-use crate::experimental_api::{Moments, PopulationMoments, Skewness};
+use crate::experimental_api::{Mean, PopulationVariance, Skewness, Variance};
 
 /// Single-pass streaming accumulator for central moments via the Welford online algorithm.
 ///
@@ -76,7 +76,7 @@ impl<const ORDER: usize, const COMPENSATED: bool> RunningMoments<ORDER, COMPENSA
     /// Collects an iterator into an accumulator in a single pass.
     ///
     /// ```
-    /// # use statrs::experimental_api::{VarianceAccum, Moments};
+    /// # use statrs::experimental_api::{Mean, Variance, VarianceAccum};
     /// let s = VarianceAccum::from_iter([1.0_f64, 2.0, 3.0]);
     /// assert_eq!(s.mean(), Some(2.0));
     /// assert_eq!(s.variance(), Some(1.0));
@@ -89,16 +89,20 @@ impl<const ORDER: usize, const COMPENSATED: bool> RunningMoments<ORDER, COMPENSA
 impl<const COMPENSATED: bool> Sealed for RunningMoments<2, COMPENSATED> {}
 impl<const COMPENSATED: bool> Sealed for RunningMoments<3, COMPENSATED> {}
 
-impl<const COMPENSATED: bool> Moments for RunningMoments<3, COMPENSATED> {
-    fn mean(&self) -> Option<f64> {
+impl<const COMPENSATED: bool> Mean for RunningMoments<3, COMPENSATED> {
+    type Output = Option<f64>;
+    fn mean(&self) -> Self::Output {
         if self.count == 0 {
             None
         } else {
             Some(self.m[0])
         }
     }
+}
 
-    fn variance(&self) -> Option<f64> {
+impl<const COMPENSATED: bool> Variance for RunningMoments<3, COMPENSATED> {
+    type Output = Option<f64>;
+    fn variance(&self) -> Self::Output {
         if self.count < 2 {
             None
         } else {
@@ -124,16 +128,20 @@ impl<const COMPENSATED: bool> Skewness for RunningMoments<3, COMPENSATED> {
     }
 }
 
-impl<const COMPENSATED: bool> Moments for RunningMoments<2, COMPENSATED> {
-    fn mean(&self) -> Option<f64> {
+impl<const COMPENSATED: bool> Mean for RunningMoments<2, COMPENSATED> {
+    type Output = Option<f64>;
+    fn mean(&self) -> Self::Output {
         if self.count == 0 {
             None
         } else {
             Some(self.m[0])
         }
     }
+}
 
-    fn variance(&self) -> Option<f64> {
+impl<const COMPENSATED: bool> Variance for RunningMoments<2, COMPENSATED> {
+    type Output = Option<f64>;
+    fn variance(&self) -> Self::Output {
         if self.count < 2 {
             None
         } else {
@@ -142,7 +150,7 @@ impl<const COMPENSATED: bool> Moments for RunningMoments<2, COMPENSATED> {
     }
 }
 
-impl<const COMPENSATED: bool> PopulationMoments for RunningMoments<2, COMPENSATED> {
+impl<const COMPENSATED: bool> PopulationVariance for RunningMoments<2, COMPENSATED> {
     fn population_variance(&self) -> Option<f64> {
         if self.count == 0 {
             None
@@ -152,7 +160,7 @@ impl<const COMPENSATED: bool> PopulationMoments for RunningMoments<2, COMPENSATE
     }
 }
 
-impl<const COMPENSATED: bool> PopulationMoments for RunningMoments<3, COMPENSATED> {
+impl<const COMPENSATED: bool> PopulationVariance for RunningMoments<3, COMPENSATED> {
     fn population_variance(&self) -> Option<f64> {
         if self.count == 0 {
             None
@@ -282,6 +290,35 @@ impl<const N: usize, const COMPENSATED: bool> RunningCov<N, COMPENSATED> {
     }
 }
 
+impl<const N: usize, const COMPENSATED: bool> Sealed for RunningCov<N, COMPENSATED> {}
+
+impl<const N: usize, const COMPENSATED: bool> Mean for RunningCov<N, COMPENSATED> {
+    type Output = Option<[f64; N]>;
+    fn mean(&self) -> Self::Output {
+        if self.count == 0 {
+            None
+        } else {
+            Some(self.mean)
+        }
+    }
+}
+
+impl<const N: usize, const COMPENSATED: bool> Variance for RunningCov<N, COMPENSATED> {
+    type Output = Option<[f64; N]>;
+    fn variance(&self) -> Self::Output {
+        if self.count < 2 {
+            None
+        } else {
+            let denom = (self.count - 1) as f64;
+            let mut out = [0.0; N];
+            for i in 0..N {
+                out[i] = self.cov[i][i] / denom;
+            }
+            Some(out)
+        }
+    }
+}
+
 /// Type alias for a covariance accumulator over `N` variables (standard, uncompensated).
 ///
 /// See [`kahan::CovAccum`] for the Kahan-compensated variant.
@@ -399,6 +436,7 @@ pub mod kahan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::experimental_api::StdDev;
 
     type Accum = RunningMoments<2>;
 
@@ -595,6 +633,7 @@ mod tests {
 #[cfg(test)]
 mod cov_tests {
     use super::*;
+    use crate::experimental_api::StdDev;
 
     #[test]
     fn default_count_is_zero() {
@@ -664,6 +703,42 @@ mod cov_tests {
             .fold(RunningCov::<1>::default(), RunningCov::push);
         let mat = s.finalize().unwrap();
         assert!((mat[0][0] - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn mean_empty_is_none() {
+        assert_eq!(RunningCov::<2>::default().mean(), None);
+    }
+
+    #[test]
+    fn mean_known_dataset() {
+        let s = RunningCov::<2>::from_iter([[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]]);
+        assert_eq!(s.mean(), Some([3.0, 4.0]));
+    }
+
+    #[test]
+    fn variance_single_obs_is_none() {
+        assert_eq!(RunningCov::<2>::default().push([1.0, 2.0]).variance(), None);
+    }
+
+    #[test]
+    fn variance_matches_finalize_diagonal() {
+        let data = [[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]];
+        let s = RunningCov::<2>::from_iter(data);
+        let variance = s.variance().unwrap();
+        let matrix = RunningCov::<2>::from_iter(data).finalize().unwrap();
+        assert!((variance[0] - matrix[0][0]).abs() < 1e-12);
+        assert!((variance[1] - matrix[1][1]).abs() < 1e-12);
+    }
+
+    #[test]
+    fn std_dev_matches_sqrt_of_variance() {
+        let data = [[1.0_f64, 2.0], [3.0, 4.0], [5.0, 6.0]];
+        let s = RunningCov::<2>::from_iter(data);
+        let std_dev = s.std_dev().unwrap();
+        let variance = s.variance().unwrap();
+        assert!((std_dev[0] - variance[0].sqrt()).abs() < 1e-12);
+        assert!((std_dev[1] - variance[1].sqrt()).abs() < 1e-12);
     }
 
     #[test]

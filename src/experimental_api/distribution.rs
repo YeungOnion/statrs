@@ -1,25 +1,80 @@
 use crate::Sealed;
 
-/// Sample mean and variance. `std_dev` defaults to `sqrt(variance)`.
+mod private_sqrt {
+    pub(crate) trait Sqrt {
+        fn sqrt(self) -> Self;
+    }
+    impl Sqrt for f64 {
+        fn sqrt(self) -> Self {
+            self.sqrt()
+        }
+    }
+    impl<F, const N: usize> Sqrt for [F; N]
+    where
+        F: Sqrt,
+    {
+        fn sqrt(self) -> Self {
+            self.map(Sqrt::sqrt)
+        }
+    }
+    impl<T: Sqrt> Sqrt for Option<T> {
+        fn sqrt(self) -> Self {
+            self.map(Sqrt::sqrt)
+        }
+    }
+}
+use private_sqrt::Sqrt;
+
+/// The mean of a distribution or accumulator.
 ///
-/// `variance` is normalised by N-1 (Bessel's correction). See
-/// [`PopulationMoments`] for the N-normalised form.
+/// `Output` is picked by the implementor: `f64` when the mean always exists,
+/// `Option<f64>` when it exists only under some condition on the parameters
+/// or amount of data seen. A type whose mean never exists (e.g. Cauchy)
+/// simply does not implement this trait.
 #[allow(private_bounds)]
-pub trait Moments: Sealed {
-    fn mean(&self) -> Option<f64>;
-    /// Sample variance, normalised by N-1.
-    fn variance(&self) -> Option<f64>;
-    fn std_dev(&self) -> Option<f64> {
-        self.variance().map(f64::sqrt)
+pub trait Mean: Sealed {
+    type Output;
+    fn mean(&self) -> Self::Output;
+}
+
+/// Sample variance, normalised by N-1 (Bessel's correction).
+///
+/// See [`PopulationVariance`] for the N-normalised form. `Output` follows the
+/// same convention as [`Mean::Output`].
+#[allow(private_bounds)]
+pub trait Variance: Sealed {
+    type Output;
+    fn variance(&self) -> Self::Output;
+}
+
+/// Standard deviation, derived from [`Variance::variance`].
+///
+/// Implemented automatically for any type whose `Variance::Output` is built
+/// out of `f64` (elementwise, however deeply nested in arrays/`Option`) — see
+/// the blanket impl below. No manual impl is needed or allowed.
+#[allow(private_bounds)]
+pub trait StdDev: Sealed {
+    type Output;
+    fn std_dev(&self) -> Self::Output;
+}
+
+impl<T> StdDev for T
+where
+    T: Variance,
+    T::Output: Sqrt,
+{
+    type Output = T::Output;
+    fn std_dev(&self) -> Self::Output {
+        self.variance().sqrt()
     }
 }
 
 /// Population variance, normalised by N rather than N-1.
 ///
-/// Use when the data is the full population. For sample estimates
-/// see [`Moments::variance`].
+/// Use when the data is the full population. For sample estimates see
+/// [`Variance::variance`].
 #[allow(private_bounds)]
-pub trait PopulationMoments: Sealed {
+pub trait PopulationVariance: Sealed {
     /// Population variance, normalised by N.
     fn population_variance(&self) -> Option<f64>;
     fn population_std_dev(&self) -> Option<f64> {
@@ -68,11 +123,16 @@ mod tests {
 
     impl Sealed for ConstDist {}
 
-    impl Moments for ConstDist {
-        fn mean(&self) -> Option<f64> {
+    impl Mean for ConstDist {
+        type Output = Option<f64>;
+        fn mean(&self) -> Self::Output {
             Some(self.mean)
         }
-        fn variance(&self) -> Option<f64> {
+    }
+
+    impl Variance for ConstDist {
+        type Output = Option<f64>;
+        fn variance(&self) -> Self::Output {
             Some(self.variance)
         }
     }
@@ -81,12 +141,28 @@ mod tests {
 
     impl Sealed for NoVariance {}
 
-    impl Moments for NoVariance {
-        fn mean(&self) -> Option<f64> {
+    impl Mean for NoVariance {
+        type Output = Option<f64>;
+        fn mean(&self) -> Self::Output {
             Some(1.0)
         }
-        fn variance(&self) -> Option<f64> {
+    }
+
+    impl Variance for NoVariance {
+        type Output = Option<f64>;
+        fn variance(&self) -> Self::Output {
             None
+        }
+    }
+
+    struct ScalarDist;
+
+    impl Sealed for ScalarDist {}
+
+    impl Variance for ScalarDist {
+        type Output = f64;
+        fn variance(&self) -> Self::Output {
+            9.0
         }
     }
 
@@ -102,6 +178,11 @@ mod tests {
     #[test]
     fn std_dev_none_when_variance_none() {
         assert_eq!(NoVariance.std_dev(), None);
+    }
+
+    #[test]
+    fn std_dev_scalar_output() {
+        assert_eq!(ScalarDist.std_dev(), 3.0);
     }
 
     #[test]

@@ -15,7 +15,7 @@ use std::ops::ControlFlow;
 
 use num_traits::Zero;
 
-use crate::experimental_api::distribution::Moments;
+use crate::experimental_api::distribution::Mean;
 use crate::experimental_api::streaming::{MeanAccum, RunningCov};
 
 /// Convenience function for quadratic means.
