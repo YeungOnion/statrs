@@ -1,7 +1,5 @@
-use crate::distribution::{Continuous, ContinuousCDF};
 use crate::function::{beta, gamma};
 use crate::prec;
-use crate::statistics::*;
 
 /// Implements the [Beta](https://en.wikipedia.org/wiki/Beta_distribution)
 /// distribution
@@ -108,6 +106,82 @@ impl Beta {
     }
 }
 
+mod legacy;
+
+pub(crate) fn pdf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
+    if !(0.0..=1.0).contains(&x) {
+        0.0
+    } else if prec::ulps_eq!(shape_a, 1.0) && prec::ulps_eq!(shape_b, 1.0) {
+        1.0
+    } else if shape_a > 80.0 || shape_b > 80.0 {
+        ln_pdf(shape_a, shape_b, x).exp()
+    } else {
+        let bb = gamma::gamma(shape_a + shape_b) / (gamma::gamma(shape_a) * gamma::gamma(shape_b));
+        bb * x.powf(shape_a - 1.0) * (1.0 - x).powf(shape_b - 1.0)
+    }
+}
+
+pub(crate) fn ln_pdf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
+    if !(0.0..=1.0).contains(&x) {
+        f64::NEG_INFINITY
+    } else if prec::ulps_eq!(shape_a, 1.0) && prec::ulps_eq!(shape_b, 1.0) {
+        0.0
+    } else {
+        let aa = gamma::ln_gamma(shape_a + shape_b) - gamma::ln_gamma(shape_a) - gamma::ln_gamma(shape_b);
+        let bb = if prec::ulps_eq!(shape_a, 1.0) && x == 0.0 {
+            0.0
+        } else if x == 0.0 {
+            f64::NEG_INFINITY
+        } else {
+            (shape_a - 1.0) * x.ln()
+        };
+        let cc = if prec::ulps_eq!(shape_b, 1.0) && prec::ulps_eq!(x, 1.0) {
+            0.0
+        } else if prec::ulps_eq!(x, 1.0) {
+            f64::NEG_INFINITY
+        } else {
+            (shape_b - 1.0) * (1.0 - x).ln()
+        };
+        aa + bb + cc
+    }
+}
+
+pub(crate) fn cdf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
+    if x < 0.0 {
+        0.0
+    } else if x >= 1.0 {
+        1.0
+    } else if prec::ulps_eq!(shape_a, 1.0) && prec::ulps_eq!(shape_b, 1.0) {
+        x
+    } else {
+        beta::beta_reg(shape_a, shape_b, x)
+    }
+}
+
+pub(crate) fn sf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
+    if x < 0.0 {
+        1.0
+    } else if x >= 1.0 {
+        0.0
+    } else if prec::ulps_eq!(shape_a, 1.0) && prec::ulps_eq!(shape_b, 1.0) {
+        1. - x
+    } else {
+        beta::beta_reg(shape_b, shape_a, 1.0 - x)
+    }
+}
+
+pub(crate) fn inverse_cdf_unchecked(shape_a: f64, shape_b: f64, p: f64) -> f64 {
+    beta::inv_beta_reg(shape_a, shape_b, p)
+}
+
+pub(crate) fn mean(shape_a: f64, shape_b: f64) -> f64 {
+    shape_a / (shape_a + shape_b)
+}
+
+pub(crate) fn variance(shape_a: f64, shape_b: f64) -> f64 {
+    shape_a * shape_b / ((shape_a + shape_b) * (shape_a + shape_b) * (shape_a + shape_b + 1.0))
+}
+
 impl core::fmt::Display for Beta {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Beta(a={}, b={})", self.shape_a, self.shape_b)
@@ -125,551 +199,3 @@ impl ::rand::distr::Distribution<f64> for Beta {
     }
 }
 
-impl ContinuousCDF<f64, f64> for Beta {
-    /// Calculates the cumulative distribution function for the beta
-    /// distribution at `x`.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// I_x(α, β)
-    /// ```
-    ///
-    /// where `α` is shapeA, `β` is shapeB, and `I_x` is the regularized
-    /// lower incomplete beta function.
-    fn cdf(&self, x: f64) -> f64 {
-        if x < 0.0 {
-            0.0
-        } else if x >= 1.0 {
-            1.0
-        } else if prec::ulps_eq!(self.shape_a, 1.0) && prec::ulps_eq!(self.shape_b, 1.0) {
-            x
-        } else {
-            beta::beta_reg(self.shape_a, self.shape_b, x)
-        }
-    }
-
-    /// Calculates the survival function for the beta distribution at `x`.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// I_(1-x)(β, α)
-    /// ```
-    ///
-    /// where `α` is shapeA, `β` is shapeB, and `I_x` is the regularized
-    /// lower incomplete beta function.
-    fn sf(&self, x: f64) -> f64 {
-        if x < 0.0 {
-            1.0
-        } else if x >= 1.0 {
-            0.0
-        } else if prec::ulps_eq!(self.shape_a, 1.0) && prec::ulps_eq!(self.shape_b, 1.0) {
-            1. - x
-        } else {
-            beta::beta_reg(self.shape_b, self.shape_a, 1.0 - x)
-        }
-    }
-
-    /// Calculates the inverse cumulative distribution function for the beta
-    /// distribution at `x`.
-    ///
-    /// # Panics
-    ///
-    /// If x is not in `[0, 1]`.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// I^{-1}_x(α, β)
-    /// ```
-    ///
-    /// where `α` is shapeA, `β` is shapeB, and `I_x` is the inverse of the
-    /// regularized lower incomplete beta function.
-    fn inverse_cdf(&self, x: f64) -> f64 {
-        if !(0.0..=1.0).contains(&x) {
-            panic!("x must be in [0, 1]");
-        } else {
-            beta::inv_beta_reg(self.shape_a, self.shape_b, x)
-        }
-    }
-}
-
-impl Min<f64> for Beta {
-    /// Returns the minimum value in the domain of the beta distribution
-    /// representable by a double precision float.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// 0
-    /// ```
-    fn min(&self) -> f64 {
-        0.0
-    }
-}
-
-impl Max<f64> for Beta {
-    /// Returns the maximum value in the domain of the beta distribution
-    /// representable by a double precision float.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// 1
-    /// ```
-    fn max(&self) -> f64 {
-        1.0
-    }
-}
-
-impl Distribution<f64> for Beta {
-    /// Returns the mean of the beta distribution.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// α / (α + β)
-    /// ```
-    ///
-    /// where `α` is shapeA and `β` is shapeB.
-    fn mean(&self) -> Option<f64> {
-        Some(self.shape_a / (self.shape_a + self.shape_b))
-    }
-
-    /// Returns the variance of the beta distribution.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// (α * β) / ((α + β)^2 * (α + β + 1))
-    /// ```
-    ///
-    /// where `α` is shapeA and `β` is shapeB.
-    fn variance(&self) -> Option<f64> {
-        Some(
-            self.shape_a * self.shape_b
-                / ((self.shape_a + self.shape_b)
-                    * (self.shape_a + self.shape_b)
-                    * (self.shape_a + self.shape_b + 1.0)),
-        )
-    }
-
-    /// Returns the entropy of the beta distribution.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// ln(B(α, β)) - (α - 1)ψ(α) - (β - 1)ψ(β) + (α + β - 2)ψ(α + β)
-    /// ```
-    ///
-    /// where `α` is shapeA, `β` is shapeB and `ψ` is the digamma function.
-    fn entropy(&self) -> Option<f64> {
-        Some(
-            beta::ln_beta(self.shape_a, self.shape_b)
-                - (self.shape_a - 1.0) * gamma::digamma(self.shape_a)
-                - (self.shape_b - 1.0) * gamma::digamma(self.shape_b)
-                + (self.shape_a + self.shape_b - 2.0) * gamma::digamma(self.shape_a + self.shape_b),
-        )
-    }
-
-    /// Returns the skewness of the Beta distribution.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// 2(β - α) * sqrt(α + β + 1) / ((α + β + 2) * sqrt(αβ))
-    /// ```
-    ///
-    /// where `α` is shapeA and `β` is shapeB.
-    fn skewness(&self) -> Option<f64> {
-        Some(
-            2.0 * (self.shape_b - self.shape_a) * (self.shape_a + self.shape_b + 1.0).sqrt()
-                / ((self.shape_a + self.shape_b + 2.0) * (self.shape_a * self.shape_b).sqrt()),
-        )
-    }
-}
-
-impl Mode<Option<f64>> for Beta {
-    /// Returns the mode of the Beta distribution. Returns `None` if `α <= 1`
-    /// or `β <= 1`.
-    ///
-    /// # Remarks
-    ///
-    /// Since the mode is technically only calculated for `α > 1, β > 1`, those
-    /// are the only values we allow. We may consider relaxing this constraint
-    /// in the future.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// (α - 1) / (α + β - 2)
-    /// ```
-    ///
-    /// where `α` is shapeA and `β` is shapeB
-    fn mode(&self) -> Option<f64> {
-        // TODO: perhaps relax constraint in order to allow calculation
-        // of 'anti-mode;
-        if self.shape_a <= 1.0 || self.shape_b <= 1.0 {
-            None
-        } else {
-            Some((self.shape_a - 1.0) / (self.shape_a + self.shape_b - 2.0))
-        }
-    }
-}
-
-impl Continuous<f64, f64> for Beta {
-    /// Calculates the probability density function for the beta distribution
-    /// at `x`.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// let B(α, β) = Γ(α)Γ(β)/Γ(α + β)
-    ///
-    /// x^(α - 1) * (1 - x)^(β - 1) / B(α, β)
-    /// ```
-    ///
-    /// where `α` is shapeA, `β` is shapeB, and `Γ` is the gamma function
-    fn pdf(&self, x: f64) -> f64 {
-        if !(0.0..=1.0).contains(&x) {
-            0.0
-        } else if prec::ulps_eq!(self.shape_a, 1.0) && prec::ulps_eq!(self.shape_b, 1.0) {
-            1.0
-        } else if self.shape_a > 80.0 || self.shape_b > 80.0 {
-            self.ln_pdf(x).exp()
-        } else {
-            let bb = gamma::gamma(self.shape_a + self.shape_b)
-                / (gamma::gamma(self.shape_a) * gamma::gamma(self.shape_b));
-            bb * x.powf(self.shape_a - 1.0) * (1.0 - x).powf(self.shape_b - 1.0)
-        }
-    }
-
-    /// Calculates the log probability density function for the beta
-    /// distribution at `x`.
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// let B(α, β) = Γ(α)Γ(β)/Γ(α + β)
-    ///
-    /// ln(x^(α - 1) * (1 - x)^(β - 1) / B(α, β))
-    /// ```
-    ///
-    /// where `α` is shapeA, `β` is shapeB, and `Γ` is the gamma function.
-    fn ln_pdf(&self, x: f64) -> f64 {
-        if !(0.0..=1.0).contains(&x) {
-            f64::NEG_INFINITY
-        } else if prec::ulps_eq!(self.shape_a, 1.0) && prec::ulps_eq!(self.shape_b, 1.0) {
-            0.0
-        } else {
-            let aa = gamma::ln_gamma(self.shape_a + self.shape_b)
-                - gamma::ln_gamma(self.shape_a)
-                - gamma::ln_gamma(self.shape_b);
-            let bb = if prec::ulps_eq!(self.shape_a, 1.0) && x == 0.0 {
-                0.0
-            } else if x == 0.0 {
-                f64::NEG_INFINITY
-            } else {
-                (self.shape_a - 1.0) * x.ln()
-            };
-            let cc = if prec::ulps_eq!(self.shape_b, 1.0) && prec::ulps_eq!(x, 1.0) {
-                0.0
-            } else if prec::ulps_eq!(x, 1.0) {
-                f64::NEG_INFINITY
-            } else {
-                (self.shape_b - 1.0) * (1.0 - x).ln()
-            };
-            aa + bb + cc
-        }
-    }
-}
-
-#[cfg(feature = "experimental_api")]
-impl crate::experimental_api::TryVariate for Beta {
-    type Repr = f64;
-    fn try_variate(
-        &self,
-        x: f64,
-    ) -> Result<
-        crate::experimental_api::Variate<Self, f64>,
-        crate::experimental_api::InvalidVariate<f64>,
-    > {
-        if x.is_finite() && (0.0..=1.0).contains(&x) {
-            Ok(crate::experimental_api::Variate::new(x))
-        } else {
-            Err(crate::experimental_api::InvalidVariate(x))
-        }
-    }
-}
-
-#[cfg(feature = "experimental_api")]
-impl crate::experimental_api::ClosedFormCdf for Beta {
-    fn cdf(
-        &self,
-        x: crate::experimental_api::Variate<Self, f64>,
-    ) -> crate::experimental_api::Probability {
-        crate::experimental_api::Probability::new(ContinuousCDF::cdf(self, x.into_inner()))
-            .expect("Beta CDF is always in [0, 1]")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::distribution::internal::density_util;
-
-    crate::distribution::internal::testing_boiler!(a: f64, b: f64; Beta; BetaError);
-
-    #[test]
-    fn test_create() {
-        let valid = [(1.0, 1.0), (9.0, 1.0), (5.0, 100.0)];
-        for (a, b) in valid {
-            create_ok(a, b);
-        }
-    }
-
-    #[test]
-    fn test_bad_create() {
-        let invalid = [
-            (0.0, 0.0),
-            (0.0, 0.1),
-            (1.0, 0.0),
-            (0.5, f64::INFINITY),
-            (f64::INFINITY, 0.5),
-            (f64::NAN, 1.0),
-            (1.0, f64::NAN),
-            (f64::NAN, f64::NAN),
-            (1.0, -1.0),
-            (-1.0, 1.0),
-            (-1.0, -1.0),
-            (f64::INFINITY, f64::INFINITY),
-        ];
-        for (a, b) in invalid {
-            create_err(a, b);
-        }
-    }
-
-    #[test]
-    fn test_mean() {
-        let f = |x: Beta| x.mean().unwrap();
-        let test = [
-            ((1.0, 1.0), 0.5),
-            ((9.0, 1.0), 0.9),
-            ((5.0, 100.0), 0.047619047619047619047616),
-        ];
-        for ((a, b), res) in test {
-            test_relative(a, b, res, f);
-        }
-    }
-
-    #[test]
-    fn test_variance() {
-        let f = |x: Beta| x.variance().unwrap();
-        let test = [
-            ((1.0, 1.0), 1.0 / 12.0),
-            ((9.0, 1.0), 9.0 / 1100.0),
-            ((5.0, 100.0), 500.0 / 1168650.0),
-        ];
-        for ((a, b), res) in test {
-            test_relative(a, b, res, f);
-        }
-    }
-
-    #[test]
-    fn test_entropy() {
-        let f = |x: Beta| x.entropy().unwrap();
-        let test = [
-            ((9.0, 1.0), -1.3083356884473304939016015),
-            ((5.0, 100.0), -2.52016231876027436794592),
-        ];
-        for ((a, b), res) in test {
-            test_relative(a, b, res, f);
-        }
-        test_absolute(1.0, 1.0, 0.0, 1e-14, f);
-    }
-
-    #[test]
-    fn test_skewness() {
-        let skewness = |x: Beta| x.skewness().unwrap();
-        test_relative(1.0, 1.0, 0.0, skewness);
-        test_relative(9.0, 1.0, -1.4740554623801777107177478829, skewness);
-        test_relative(5.0, 100.0, 0.817594109275534303545831591, skewness);
-    }
-
-    #[test]
-    fn test_mode() {
-        let mode = |x: Beta| x.mode().unwrap();
-        test_relative(5.0, 100.0, 0.038834951456310676243255386, mode);
-    }
-
-    #[test]
-    fn test_mode_shape_a_lte_1() {
-        test_none(1.0, 5.0, |dist| dist.mode());
-    }
-
-    #[test]
-    fn test_mode_shape_b_lte_1() {
-        test_none(5.0, 1.0, |dist| dist.mode());
-    }
-
-    #[test]
-    fn test_min_max() {
-        let min = |x: Beta| x.min();
-        let max = |x: Beta| x.max();
-        test_relative(1.0, 1.0, 0.0, min);
-        test_relative(1.0, 1.0, 1.0, max);
-    }
-
-    #[test]
-    fn test_pdf() {
-        let f = |arg: f64| move |x: Beta| x.pdf(arg);
-        let test = [
-            ((1.0, 1.0), 0.0, 1.0),
-            ((1.0, 1.0), 0.5, 1.0),
-            ((1.0, 1.0), 1.0, 1.0),
-            ((9.0, 1.0), 0.0, 0.0),
-            ((9.0, 1.0), 0.5, 0.03515625),
-            ((9.0, 1.0), 1.0, 9.0),
-            ((5.0, 100.0), 0.0, 0.0),
-            ((5.0, 100.0), 0.5, 4.534102298350337661e-23),
-            ((5.0, 100.0), 1.0, 0.0),
-            ((5.0, 100.0), 1.0, 0.0),
-        ];
-        for ((a, b), x, expect) in test {
-            test_relative(a, b, expect, f(x));
-        }
-    }
-
-    #[test]
-    fn test_pdf_input_lt_0() {
-        let pdf = |arg: f64| move |x: Beta| x.pdf(arg);
-        test_relative(1.0, 1.0, 0.0, pdf(-1.0));
-    }
-
-    #[test]
-    fn test_pdf_input_gt_0() {
-        let pdf = |arg: f64| move |x: Beta| x.pdf(arg);
-        test_relative(1.0, 1.0, 0.0, pdf(2.0));
-    }
-
-    #[test]
-    fn test_ln_pdf() {
-        let f = |arg: f64| move |x: Beta| x.ln_pdf(arg);
-        let test = [
-            ((1.0, 1.0), 0.0, 0.0),
-            ((1.0, 1.0), 0.5, 0.0),
-            ((1.0, 1.0), 1.0, 0.0),
-            ((9.0, 1.0), 0.0, f64::NEG_INFINITY),
-            ((9.0, 1.0), 0.5, -3.347952867143343092547366497),
-            ((9.0, 1.0), 1.0, 2.1972245773362193827904904738),
-            ((5.0, 100.0), 0.0, f64::NEG_INFINITY),
-            ((5.0, 100.0), 0.5, -51.447830024537682154565870),
-            ((5.0, 100.0), 1.0, f64::NEG_INFINITY),
-        ];
-        for ((a, b), x, expect) in test {
-            test_relative(a, b, expect, f(x));
-        }
-    }
-
-    #[test]
-    fn test_ln_pdf_input_lt_0() {
-        let ln_pdf = |arg: f64| move |x: Beta| x.ln_pdf(arg);
-        test_relative(1.0, 1.0, f64::NEG_INFINITY, ln_pdf(-1.0));
-    }
-
-    #[test]
-    fn test_ln_pdf_input_gt_1() {
-        let ln_pdf = |arg: f64| move |x: Beta| x.ln_pdf(arg);
-        test_relative(1.0, 1.0, f64::NEG_INFINITY, ln_pdf(2.0));
-    }
-
-    #[test]
-    fn test_cdf() {
-        let cdf = |arg: f64| move |x: Beta| x.cdf(arg);
-        let test = [
-            ((1.0, 1.0), 0.0, 0.0),
-            ((1.0, 1.0), 0.5, 0.5),
-            ((1.0, 1.0), 1.0, 1.0),
-            ((9.0, 1.0), 0.0, 0.0),
-            ((9.0, 1.0), 0.5, 0.001953125),
-            ((9.0, 1.0), 1.0, 1.0),
-            ((5.0, 100.0), 0.0, 0.0),
-            ((5.0, 100.0), 0.5, 1.0),
-            ((5.0, 100.0), 1.0, 1.0),
-        ];
-        for ((a, b), x, expect) in test {
-            test_relative(a, b, expect, cdf(x));
-        }
-    }
-
-    #[test]
-    fn test_sf() {
-        let sf = |arg: f64| move |x: Beta| x.sf(arg);
-        let test = [
-            ((1.0, 1.0), 0.0, 1.0),
-            ((1.0, 1.0), 0.5, 0.5),
-            ((1.0, 1.0), 1.0, 0.0),
-            ((9.0, 1.0), 0.0, 1.0),
-            ((9.0, 1.0), 0.5, 0.998046875),
-            ((9.0, 1.0), 1.0, 0.0),
-            ((5.0, 100.0), 0.0, 1.0),
-            ((5.0, 100.0), 0.5, 0.0),
-            ((5.0, 100.0), 1.0, 0.0),
-        ];
-        for ((a, b), x, expect) in test {
-            test_relative(a, b, expect, sf(x));
-        }
-    }
-
-    #[test]
-    fn test_inverse_cdf() {
-        // let inverse_cdf = |arg: f64| move |x: Beta| x.inverse_cdf(arg);
-        let func = |arg: f64| move |x: Beta| x.inverse_cdf(x.cdf(arg));
-        let test = [
-            ((1.0, 1.0), 0.0, 0.0),
-            ((1.0, 1.0), 0.5, 0.5),
-            ((1.0, 1.0), 1.0, 1.0),
-            ((9.0, 1.0), 0.0, 0.0),
-            ((9.0, 1.0), 0.001953125, 0.001953125),
-            ((9.0, 1.0), 0.5, 0.5),
-            ((9.0, 1.0), 1.0, 1.0),
-            ((5.0, 100.0), 0.0, 0.0),
-            ((5.0, 100.0), 0.01, 0.01),
-            ((5.0, 100.0), 1.0, 1.0),
-        ];
-        for ((a, b), x, expect) in test {
-            test_relative(a, b, expect, func(x));
-        }
-    }
-
-    #[test]
-    fn test_cdf_input_lt_0() {
-        let cdf = |arg: f64| move |x: Beta| x.cdf(arg);
-        test_relative(1.0, 1.0, 0.0, cdf(-1.0));
-    }
-
-    #[test]
-    fn test_cdf_input_gt_1() {
-        let cdf = |arg: f64| move |x: Beta| x.cdf(arg);
-        test_relative(1.0, 1.0, 1.0, cdf(2.0));
-    }
-
-    #[test]
-    fn test_sf_input_lt_0() {
-        let sf = |arg: f64| move |x: Beta| x.sf(arg);
-        test_relative(1.0, 1.0, 1.0, sf(-1.0));
-    }
-
-    #[test]
-    fn test_sf_input_gt_1() {
-        let sf = |arg: f64| move |x: Beta| x.sf(arg);
-        test_relative(1.0, 1.0, 0.0, sf(2.0));
-    }
-
-    #[test]
-    fn test_continuous() {
-        density_util::check_continuous_distribution(&create_ok(1.2, 3.4), 0.0, 1.0);
-        density_util::check_continuous_distribution(&create_ok(4.5, 6.7), 0.0, 1.0);
-    }
-}
