@@ -100,6 +100,8 @@ impl Poisson {
 
 #[cfg(not(feature = "experimental_api"))]
 mod legacy;
+#[cfg(feature = "experimental_api")]
+mod experimental;
 
 pub(crate) fn pmf(lambda: f64, x: u64) -> f64 {
     (-lambda + x as f64 * lambda.ln() - factorial::ln_factorial(x)).exp()
