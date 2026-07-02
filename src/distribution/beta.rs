@@ -7,13 +7,29 @@ use crate::prec;
 /// # Examples
 ///
 /// ```
-/// use statrs::distribution::{Beta, Continuous};
-/// use statrs::statistics::*;
-/// use approx::assert_abs_diff_eq;
+/// use statrs::distribution::Beta;
 ///
 /// let n = Beta::new(2.0, 2.0).unwrap();
-/// assert_eq!(n.mean().unwrap(), 0.5);
-/// assert_abs_diff_eq!(n.pdf(0.5), 1.5, epsilon = 1e-14);
+///
+/// #[cfg(feature = "experimental_api")]
+/// {
+///     use approx::assert_abs_diff_eq;
+///     use statrs::experimental_api::{Mean, Pdf, TryVariate};
+///
+///     assert_eq!(n.mean(), 0.5);
+///     let x = n.try_variate(0.5).unwrap();
+///     assert_abs_diff_eq!(n.pdf(x).into_inner(), 1.5, epsilon = 1e-14);
+/// }
+///
+/// #[cfg(not(feature = "experimental_api"))]
+/// {
+///     use approx::assert_abs_diff_eq;
+///     use statrs::distribution::Continuous;
+///     use statrs::statistics::Distribution;
+///
+///     assert_eq!(n.mean().unwrap(), 0.5);
+///     assert_abs_diff_eq!(n.pdf(0.5), 1.5, epsilon = 1e-14);
+/// }
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Beta {
@@ -106,6 +122,7 @@ impl Beta {
     }
 }
 
+#[cfg(not(feature = "experimental_api"))]
 mod legacy;
 
 pub(crate) fn pdf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
