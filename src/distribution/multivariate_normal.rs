@@ -393,6 +393,8 @@ where
 
 #[cfg(not(feature = "experimental_api"))]
 mod legacy;
+#[cfg(feature = "experimental_api")]
+mod experimental;
 
 impl<D> core::fmt::Display for MultivariateNormal<D>
 where
