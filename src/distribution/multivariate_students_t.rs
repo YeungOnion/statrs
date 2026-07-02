@@ -400,9 +400,11 @@ mod tests  {
     use nalgebra::{DMatrix, DVector, Dyn, OMatrix, OVector, U1, U2};
 
     use crate::{
-        distribution::{Continuous, MultivariateStudent, MultivariateNormal},
+        distribution::{Continuous, MultivariateStudent},
         statistics::{Max, MeanN, Min, Mode, VarianceN},
     };
+    #[cfg(not(feature = "experimental_api"))]
+    use crate::distribution::MultivariateNormal;
 
     use super::MultivariateStudentError;
 
@@ -451,6 +453,7 @@ mod tests  {
         prec::assert_relative_eq!(expected, x, epsilon = prec::DEFAULT_EPS, max_relative = MODULE_RELATIVE_EQ);
     }
 
+    #[cfg(not(feature = "experimental_api"))]
     fn test_abs_diff_multivariate_normal<F1, F2>(
         location: Vec<f64>,
         scale: Vec<f64>,
@@ -580,6 +583,7 @@ mod tests  {
     }
 
     #[test]
+    #[cfg(not(feature = "experimental_api"))]
     fn test_pdf_freedom_large() {
         let pdf_mvs = |mv: MultivariateStudent<Dyn>, arg: DVector<f64>| mv.pdf(&arg);
         let pdf_mvn = |mv: MultivariateNormal<Dyn>, arg: DVector<f64>| mv.pdf(&arg);
@@ -590,6 +594,7 @@ mod tests  {
     }
 
     #[test]
+    #[cfg(not(feature = "experimental_api"))]
     fn test_ln_pdf_freedom_large() {
         let pdf_mvs = |mv: MultivariateStudent<Dyn>, arg: DVector<f64>| mv.ln_pdf(&arg);
         let pdf_mvn = |mv: MultivariateNormal<Dyn>, arg: DVector<f64>| mv.ln_pdf(&arg);
