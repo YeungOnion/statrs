@@ -124,6 +124,8 @@ impl Beta {
 
 #[cfg(not(feature = "experimental_api"))]
 mod legacy;
+#[cfg(feature = "experimental_api")]
+mod experimental;
 
 pub(crate) fn pdf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
     if !(0.0..=1.0).contains(&x) {

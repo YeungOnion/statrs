@@ -460,6 +460,7 @@ mod test {
         }
     }
 
+    #[cfg(not(feature = "experimental_api"))]
     pub mod boiler_tests {
         use crate::distribution::{Beta, BetaError};
         use crate::statistics::*;
