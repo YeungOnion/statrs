@@ -38,6 +38,7 @@ pub use self::multivariate_normal::{MultivariateNormal, MultivariateNormalError}
 pub use self::multivariate_students_t::{MultivariateStudent, MultivariateStudentError};
 pub use self::negative_binomial::{NegativeBinomial, NegativeBinomialError};
 pub use self::normal::{Normal, NormalError};
+pub(crate) use self::normal::cdf_unchecked as norm_cdf;
 pub use self::pareto::{Pareto, ParetoError};
 pub use self::poisson::{Poisson, PoissonError};
 pub use self::students_t::{StudentsT, StudentsTError};

@@ -3,7 +3,7 @@
 
 use num_traits::clamp;
 
-use crate::distribution::{ContinuousCDF, Normal};
+use crate::distribution::norm_cdf;
 use crate::stats_tests::Alternative;
 
 /// Represents the errors that can occur when computing the mannwhitneyu function
@@ -148,8 +148,7 @@ fn calc_mwu_asymptotic_pvalue(
 
     // NOTE: z could be infinity (if all input values are the same for example)
     // but the Normal CDF should handle this in a consistent way with scipy
-    let norm_dist = Normal::default();
-    1.0 - norm_dist.cdf(z)
+    1.0 - norm_cdf(z, 0.0, 1.0)
 }
 
 fn calc_mwu_exact_pvalue(u: f64, n1: usize, n2: usize) -> f64 {

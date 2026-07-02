@@ -1,7 +1,7 @@
 //! Provides the [skewtest](https://docs.scipy.org/doc/scipy-1.15.0/reference/generated/scipy.stats.skewtest.html)
 //! to test whether or not provided data is different than a normal distribution
 
-use crate::distribution::{ContinuousCDF, Normal};
+use crate::distribution::norm_cdf;
 use crate::stats_tests::{Alternative, NaNPolicy};
 
 /// Represents the errors that can occur when computing the skewtest function
@@ -108,12 +108,10 @@ pub fn skewtest(
     }
     let zscore = delta * (y / alpha + ((y / alpha).powi(2) + 1.0).sqrt()).ln();
 
-    let norm_dist = Normal::default();
-
     let pvalue = match alternative {
-        Alternative::TwoSided => 2.0 * (1.0 - norm_dist.cdf(zscore.abs())),
-        Alternative::Less => norm_dist.cdf(zscore),
-        Alternative::Greater => 1.0 - norm_dist.cdf(zscore),
+        Alternative::TwoSided => 2.0 * (1.0 - norm_cdf(zscore.abs(), 0.0, 1.0)),
+        Alternative::Less => norm_cdf(zscore, 0.0, 1.0),
+        Alternative::Greater => 1.0 - norm_cdf(zscore, 0.0, 1.0),
     };
 
     Ok((zscore, pvalue))

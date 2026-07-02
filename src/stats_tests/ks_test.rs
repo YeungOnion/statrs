@@ -188,14 +188,14 @@ fn onesample_marsaglia_et_al_twosided_pvalue(d: f64, n: f64) -> Result<f64, KSTe
 ///
 /// ```
 /// use statrs::stats_tests::ks_test::{ks_onesample, KSOneSampleAlternativeMethod};
-/// use statrs::distribution::Normal;
+/// use statrs::distribution::Uniform;
 /// use statrs::stats_tests::NaNPolicy;
 ///
 /// let data: Vec<f64> = (-150..=150).map(|i| i as f64 * 0.01).collect();
 ///
 /// let (statistic, pvalue) = ks_onesample(
 ///     data.clone(),
-///     &Normal::default(),
+///     &Uniform::new(-1.5, 1.5).unwrap(),
 ///     KSOneSampleAlternativeMethod::TwoSidedAsymptotic,
 ///     NaNPolicy::Error,
 /// )
@@ -499,7 +499,9 @@ pub fn ks_twosample(
 mod tests {
 
     use super::*;
-    use crate::distribution::{Exp, Normal, Uniform};
+    use crate::distribution::{Exp, Uniform};
+    #[cfg(not(feature = "experimental_api"))]
+    use crate::distribution::Normal;
     use crate::{prec, statistics::Statistics};
 
     #[test]
@@ -566,6 +568,7 @@ mod tests {
         prec::assert_abs_diff_eq!(pvalue, 0.03537978433644373, epsilon = 1e-9);
     }
     #[test]
+    #[cfg(not(feature = "experimental_api"))]
     fn test_ks_onesample_against_r() {
         let data: Vec<f64> = (-150..=150).map(|i| i as f64 * 0.01).collect();
 
@@ -641,7 +644,7 @@ mod tests {
         let data: Vec<f64> = Vec::new();
         let result = ks_onesample(
             data,
-            &Normal::default(),
+            &Uniform::new(0.0, 1.0).unwrap(),
             KSOneSampleAlternativeMethod::TwoSidedExact,
             NaNPolicy::Error,
         );
@@ -650,7 +653,7 @@ mod tests {
         let data: Vec<f64> = Vec::from([f64::NAN, f64::NAN]);
         let result = ks_onesample(
             data,
-            &Normal::default(),
+            &Uniform::new(0.0, 1.0).unwrap(),
             KSOneSampleAlternativeMethod::TwoSidedExact,
             NaNPolicy::Emit,
         );
@@ -661,7 +664,7 @@ mod tests {
         let data: Vec<f64> = (-150..=150).map(|i| i as f64 * 0.01).collect();
         let result = ks_onesample(
             data,
-            &Normal::default(),
+            &Uniform::new(0.0, 1.0).unwrap(),
             KSOneSampleAlternativeMethod::TwoSidedExact,
             NaNPolicy::Error,
         );
@@ -673,7 +676,7 @@ mod tests {
         data[0] = data[1];
         let result = ks_onesample(
             data,
-            &Normal::default(),
+            &Uniform::new(0.0, 1.0).unwrap(),
             KSOneSampleAlternativeMethod::TwoSidedExact,
             NaNPolicy::Error,
         );
@@ -719,7 +722,7 @@ mod tests {
         data[0] = f64::NAN;
         let (statistic, pvalue) = ks_onesample(
             data,
-            &Normal::default(),
+            &Uniform::new(0.0, 1.0).unwrap(),
             KSOneSampleAlternativeMethod::TwoSidedExact,
             NaNPolicy::Propogate,
         )
@@ -733,7 +736,7 @@ mod tests {
         data[0] = f64::NAN;
         let result = ks_onesample(
             data,
-            &Normal::default(),
+            &Uniform::new(0.0, 1.0).unwrap(),
             KSOneSampleAlternativeMethod::TwoSidedExact,
             NaNPolicy::Error,
         );

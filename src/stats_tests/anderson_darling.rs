@@ -57,9 +57,12 @@ pub fn anderson_darling<T: ContinuousCDF<f64, f64>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::distribution::{Gamma, Normal};
+    use crate::distribution::Gamma;
+    #[cfg(not(feature = "experimental_api"))]
+    use crate::distribution::Normal;
 
     #[test]
+    #[cfg(not(feature = "experimental_api"))]
     fn test_normality_good_fit() {
         let data = vec![5.2, 4.9, 5.5, 4.8, 5.0, 5.1, 5.3, 4.7, 5.4, 4.9, 5.2, 5.0];
         let n = data.len();
@@ -76,6 +79,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "experimental_api"))]
     fn test_normality_poor_fit() {
         let data = vec![1.0, 1.2, 1.5, 1.9, 2.0, 2.1, 2.2, 2.3, 5.0, 8.0, 12.0];
         let n = data.len();
@@ -112,8 +116,8 @@ mod tests {
     #[test]
     fn test_sample_size_invalid() {
         let data: Vec<f64> = vec![];
-        let normal_dist = Normal::new(0.0, 1.0).unwrap();
-        let result = anderson_darling(&data, &normal_dist);
+        let gamma_dist = Gamma::new(2.0, 1.0).unwrap();
+        let result = anderson_darling(&data, &gamma_dist);
         assert!(result.is_err());
     }
 }
