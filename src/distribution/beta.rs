@@ -218,3 +218,177 @@ impl ::rand::distr::Distribution<f64> for Beta {
     }
 }
 
+#[rustfmt::skip]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pdf_matches_reference_values() {
+        let test = [
+            ((1.0, 1.0), 0.0, 1.0),
+            ((1.0, 1.0), 0.5, 1.0),
+            ((1.0, 1.0), 1.0, 1.0),
+            ((9.0, 1.0), 0.0, 0.0),
+            ((9.0, 1.0), 0.5, 0.03515625),
+            ((9.0, 1.0), 1.0, 9.0),
+            ((5.0, 100.0), 0.0, 0.0),
+            ((5.0, 100.0), 0.5, 4.534102298350337661e-23),
+            ((5.0, 100.0), 1.0, 0.0),
+        ];
+        for ((a, b), x, expect) in test {
+            crate::prec::assert_relative_eq!(
+                pdf(a, b, x),
+                expect,
+                max_relative = crate::prec::DEFAULT_RELATIVE_ACC
+            );
+        }
+    }
+
+    #[test]
+    fn pdf_is_zero_outside_support() {
+        assert_eq!(pdf(1.0, 1.0, -1.0), 0.0);
+        assert_eq!(pdf(1.0, 1.0, 2.0), 0.0);
+    }
+
+    #[test]
+    fn ln_pdf_matches_reference_values() {
+        let test = [
+            ((1.0, 1.0), 0.0, 0.0),
+            ((1.0, 1.0), 0.5, 0.0),
+            ((1.0, 1.0), 1.0, 0.0),
+            ((9.0, 1.0), 0.0, f64::NEG_INFINITY),
+            ((9.0, 1.0), 0.5, -3.347952867143343092547366497),
+            ((9.0, 1.0), 1.0, 2.1972245773362193827904904738),
+            ((5.0, 100.0), 0.0, f64::NEG_INFINITY),
+            ((5.0, 100.0), 0.5, -51.447830024537682154565870),
+            ((5.0, 100.0), 1.0, f64::NEG_INFINITY),
+        ];
+        for ((a, b), x, expect) in test {
+            crate::prec::assert_relative_eq!(
+                ln_pdf(a, b, x),
+                expect,
+                max_relative = crate::prec::DEFAULT_RELATIVE_ACC
+            );
+        }
+    }
+
+    #[test]
+    fn ln_pdf_is_neg_infinity_outside_support() {
+        assert_eq!(ln_pdf(1.0, 1.0, -1.0), f64::NEG_INFINITY);
+        assert_eq!(ln_pdf(1.0, 1.0, 2.0), f64::NEG_INFINITY);
+    }
+
+    #[test]
+    fn cdf_matches_reference_values() {
+        let test = [
+            ((1.0, 1.0), 0.0, 0.0),
+            ((1.0, 1.0), 0.5, 0.5),
+            ((1.0, 1.0), 1.0, 1.0),
+            ((9.0, 1.0), 0.0, 0.0),
+            ((9.0, 1.0), 0.5, 0.001953125),
+            ((9.0, 1.0), 1.0, 1.0),
+            ((5.0, 100.0), 0.0, 0.0),
+            ((5.0, 100.0), 0.5, 1.0),
+            ((5.0, 100.0), 1.0, 1.0),
+        ];
+        for ((a, b), x, expect) in test {
+            crate::prec::assert_relative_eq!(
+                cdf(a, b, x),
+                expect,
+                max_relative = crate::prec::DEFAULT_RELATIVE_ACC
+            );
+        }
+    }
+
+    #[test]
+    fn cdf_clamps_outside_support() {
+        assert_eq!(cdf(1.0, 1.0, -1.0), 0.0);
+        assert_eq!(cdf(1.0, 1.0, 2.0), 1.0);
+    }
+
+    #[test]
+    fn sf_matches_reference_values() {
+        let test = [
+            ((1.0, 1.0), 0.0, 1.0),
+            ((1.0, 1.0), 0.5, 0.5),
+            ((1.0, 1.0), 1.0, 0.0),
+            ((9.0, 1.0), 0.0, 1.0),
+            ((9.0, 1.0), 0.5, 0.998046875),
+            ((9.0, 1.0), 1.0, 0.0),
+            ((5.0, 100.0), 0.0, 1.0),
+            ((5.0, 100.0), 0.5, 0.0),
+            ((5.0, 100.0), 1.0, 0.0),
+        ];
+        for ((a, b), x, expect) in test {
+            crate::prec::assert_relative_eq!(
+                sf(a, b, x),
+                expect,
+                max_relative = crate::prec::DEFAULT_RELATIVE_ACC
+            );
+        }
+    }
+
+    #[test]
+    fn sf_clamps_outside_support() {
+        assert_eq!(sf(1.0, 1.0, -1.0), 1.0);
+        assert_eq!(sf(1.0, 1.0, 2.0), 0.0);
+    }
+
+    #[test]
+    fn mean_matches_reference_values() {
+        let test = [
+            ((1.0, 1.0), 0.5),
+            ((9.0, 1.0), 0.9),
+            ((5.0, 100.0), 0.047619047619047619047616),
+        ];
+        for ((a, b), expect) in test {
+            crate::prec::assert_relative_eq!(
+                mean(a, b),
+                expect,
+                max_relative = crate::prec::DEFAULT_RELATIVE_ACC
+            );
+        }
+    }
+
+    #[test]
+    fn variance_matches_reference_values() {
+        let test = [
+            ((1.0, 1.0), 1.0 / 12.0),
+            ((9.0, 1.0), 9.0 / 1100.0),
+            ((5.0, 100.0), 500.0 / 1168650.0),
+        ];
+        for ((a, b), expect) in test {
+            crate::prec::assert_relative_eq!(
+                variance(a, b),
+                expect,
+                max_relative = crate::prec::DEFAULT_RELATIVE_ACC
+            );
+        }
+    }
+
+    #[test]
+    fn inverse_cdf_unchecked_roundtrips_through_cdf() {
+        let test = [
+            (1.0, 1.0, 0.0),
+            (1.0, 1.0, 0.5),
+            (1.0, 1.0, 1.0),
+            (9.0, 1.0, 0.0),
+            (9.0, 1.0, 0.001953125),
+            (9.0, 1.0, 0.5),
+            (9.0, 1.0, 1.0),
+            (5.0, 100.0, 0.0),
+            (5.0, 100.0, 0.01),
+            (5.0, 100.0, 1.0),
+        ];
+        for (a, b, x) in test {
+            let p = cdf(a, b, x);
+            crate::prec::assert_relative_eq!(
+                inverse_cdf_unchecked(a, b, p),
+                x,
+                max_relative = crate::prec::DEFAULT_RELATIVE_ACC
+            );
+        }
+    }
+}
+
