@@ -51,7 +51,7 @@ use crate::experimental_api::{ProbabilityDensity, ProbabilityMass};
 /// returned [`Variate`] to [`ClosedFormCdf::cdf`], [`Pdf::pdf`], etc.
 /// Passing it to a different distribution's methods is a compile error.
 pub trait TryVariate: Sized {
-    type Repr: Copy;
+    type Repr: Clone;
     fn try_variate(
         &self,
         x: Self::Repr,

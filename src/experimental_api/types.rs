@@ -204,10 +204,19 @@ impl TryFrom<f64> for Probability {
 /// Construct via [`TryVariate::try_variate`].
 #[doc(alias = "domain")]
 #[doc(alias = "sample")]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(PartialEq, Debug)]
 pub struct Variate<D, B>(B, PhantomData<D>);
 
-impl<D, B: Copy> Variate<D, B> {
+// Manual instead of derived: derive would bound the phantom `D` on
+// Clone/Copy too, even though `D` is never stored.
+impl<D, B: Clone> Clone for Variate<D, B> {
+    fn clone(&self) -> Self {
+        Variate(self.0.clone(), PhantomData)
+    }
+}
+impl<D, B: Copy> Copy for Variate<D, B> {}
+
+impl<D, B: Clone> Variate<D, B> {
     /// Returns the inner value, consuming the wrapper.
     pub fn into_inner(self) -> B {
         self.0
