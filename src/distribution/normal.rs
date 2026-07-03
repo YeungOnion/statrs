@@ -113,10 +113,10 @@ impl Normal {
     }
 }
 
-#[cfg(not(feature = "experimental_api"))]
-mod legacy;
 #[cfg(feature = "experimental_api")]
 mod experimental;
+#[cfg(not(feature = "experimental_api"))]
+mod legacy;
 
 impl core::fmt::Display for Normal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -318,4 +318,3 @@ mod tests {
         }
     }
 }
-

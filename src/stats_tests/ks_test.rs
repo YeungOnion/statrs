@@ -499,9 +499,9 @@ pub fn ks_twosample(
 mod tests {
 
     use super::*;
-    use crate::distribution::{Exp, Uniform};
     #[cfg(not(feature = "experimental_api"))]
     use crate::distribution::Normal;
+    use crate::distribution::{Exp, Uniform};
     use crate::{prec, statistics::Statistics};
 
     #[test]

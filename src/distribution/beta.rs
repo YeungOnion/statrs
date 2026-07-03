@@ -122,10 +122,10 @@ impl Beta {
     }
 }
 
-#[cfg(not(feature = "experimental_api"))]
-mod legacy;
 #[cfg(feature = "experimental_api")]
 mod experimental;
+#[cfg(not(feature = "experimental_api"))]
+mod legacy;
 
 pub(crate) fn pdf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
     if !(0.0..=1.0).contains(&x) {
@@ -146,7 +146,9 @@ pub(crate) fn ln_pdf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
     } else if prec::ulps_eq!(shape_a, 1.0) && prec::ulps_eq!(shape_b, 1.0) {
         0.0
     } else {
-        let aa = gamma::ln_gamma(shape_a + shape_b) - gamma::ln_gamma(shape_a) - gamma::ln_gamma(shape_b);
+        let aa = gamma::ln_gamma(shape_a + shape_b)
+            - gamma::ln_gamma(shape_a)
+            - gamma::ln_gamma(shape_b);
         let bb = if prec::ulps_eq!(shape_a, 1.0) && x == 0.0 {
             0.0
         } else if x == 0.0 {
@@ -391,4 +393,3 @@ mod tests {
         }
     }
 }
-

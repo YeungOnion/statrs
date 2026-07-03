@@ -391,10 +391,10 @@ where
     }
 }
 
-#[cfg(not(feature = "experimental_api"))]
-mod legacy;
 #[cfg(feature = "experimental_api")]
 mod experimental;
+#[cfg(not(feature = "experimental_api"))]
+mod legacy;
 
 impl<D> core::fmt::Display for MultivariateNormal<D>
 where
@@ -432,11 +432,10 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use nalgebra::{dmatrix, dvector};
     use crate::distribution::MultivariateNormal;
+    use nalgebra::{dmatrix, dvector};
 
     fn try_create<D>(
         mean: nalgebra::OVector<f64, D>,
@@ -454,9 +453,21 @@ mod tests {
     #[test]
     fn test_entropy() {
         let entropy = |x: MultivariateNormal<_>| x.entropy().unwrap();
-        assert_eq!(entropy(try_create(dvector![0., 0.], dmatrix![1., 0.; 0., 1.])), 2.8378770664093453);
-        assert_eq!(entropy(try_create(dvector![0., 0.], dmatrix![1., 0.5; 0.5, 1.])), 2.694036030183455);
-        assert_eq!(entropy(try_create(dvector![0., 0.], dmatrix![f64::INFINITY, 0.; 0., f64::INFINITY])), f64::INFINITY);
+        assert_eq!(
+            entropy(try_create(dvector![0., 0.], dmatrix![1., 0.; 0., 1.])),
+            2.8378770664093453
+        );
+        assert_eq!(
+            entropy(try_create(dvector![0., 0.], dmatrix![1., 0.5; 0.5, 1.])),
+            2.694036030183455
+        );
+        assert_eq!(
+            entropy(try_create(
+                dvector![0., 0.],
+                dmatrix![f64::INFINITY, 0.; 0., f64::INFINITY]
+            )),
+            f64::INFINITY
+        );
     }
 
     #[test]

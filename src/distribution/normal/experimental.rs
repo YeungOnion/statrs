@@ -1,6 +1,6 @@
 use super::{Normal, cdf_unchecked, inverse_cdf_unchecked, pdf_unchecked};
 use crate::experimental_api::{
-    ClosedFormCdf, InverseCdf, InverseCdfError, InvalidVariate, Mean, Pdf, Probability,
+    ClosedFormCdf, InvalidVariate, InverseCdf, InverseCdfError, Mean, Pdf, Probability,
     ProbabilityDensity, TryVariate, Variance, Variate,
 };
 
@@ -28,7 +28,8 @@ impl ClosedFormCdf for Normal {
 impl InverseCdf for Normal {
     fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
         let x = inverse_cdf_unchecked(p.into_inner(), self.mean, self.std_dev);
-        self.try_variate(x).map_err(|_| InverseCdfError::OutOfSupport)
+        self.try_variate(x)
+            .map_err(|_| InverseCdfError::OutOfSupport)
     }
 }
 

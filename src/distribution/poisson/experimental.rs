@@ -1,6 +1,6 @@
 use super::Poisson;
 use crate::experimental_api::{
-    ClosedFormCdf, InverseCdf, InverseCdfError, InvalidVariate, Mean, Pmf, Probability,
+    ClosedFormCdf, InvalidVariate, InverseCdf, InverseCdfError, Mean, Pmf, Probability,
     ProbabilityMass, TryVariate, Variance, Variate,
 };
 
@@ -24,7 +24,8 @@ impl ClosedFormCdf for Poisson {
 impl InverseCdf for Poisson {
     fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, u64>, InverseCdfError> {
         let x = super::inverse_cdf_unchecked(self.lambda, p.into_inner());
-        self.try_variate(x).map_err(|_| InverseCdfError::OutOfSupport)
+        self.try_variate(x)
+            .map_err(|_| InverseCdfError::OutOfSupport)
     }
 }
 

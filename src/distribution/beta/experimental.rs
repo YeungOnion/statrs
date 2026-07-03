@@ -1,6 +1,6 @@
 use super::Beta;
 use crate::experimental_api::{
-    ClosedFormCdf, InverseCdf, InverseCdfError, InvalidVariate, Mean, Pdf, Probability,
+    ClosedFormCdf, InvalidVariate, InverseCdf, InverseCdfError, Mean, Pdf, Probability,
     ProbabilityDensity, TryVariate, Variance, Variate,
 };
 
@@ -28,7 +28,8 @@ impl ClosedFormCdf for Beta {
 impl InverseCdf for Beta {
     fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
         let x = super::inverse_cdf_unchecked(self.shape_a, self.shape_b, p.into_inner());
-        self.try_variate(x).map_err(|_| InverseCdfError::OutOfSupport)
+        self.try_variate(x)
+            .map_err(|_| InverseCdfError::OutOfSupport)
     }
 }
 

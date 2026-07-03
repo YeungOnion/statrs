@@ -215,7 +215,10 @@ mod tests {
     #[test]
     fn test_inverse_cdf() {
         let x = create_ok(9.0, 1.0);
-        assert_eq!(x.inverse_cdf(0.5), super::super::inverse_cdf_unchecked(9.0, 1.0, 0.5));
+        assert_eq!(
+            x.inverse_cdf(0.5),
+            super::super::inverse_cdf_unchecked(9.0, 1.0, 0.5)
+        );
     }
 
     #[test]

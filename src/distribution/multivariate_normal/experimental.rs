@@ -132,7 +132,11 @@ mod tests {
     fn pdf_matches_reference_value() {
         let d = try_create(vector![0., 0.], matrix![1., 0.; 0., 1.]);
         let x = d.try_variate(vector![1., 1.]).unwrap();
-        crate::prec::assert_abs_diff_eq!(d.pdf(x).into_inner(), 0.05854983152431917, epsilon = 1e-15);
+        crate::prec::assert_abs_diff_eq!(
+            d.pdf(x).into_inner(),
+            0.05854983152431917,
+            epsilon = 1e-15
+        );
     }
 
     #[test]
