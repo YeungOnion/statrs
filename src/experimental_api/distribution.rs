@@ -22,6 +22,17 @@ mod private_sqrt {
             self.map(Sqrt::sqrt)
         }
     }
+
+    #[cfg(feature = "nalgebra")]
+    impl<D> Sqrt for nalgebra::OVector<f64, D>
+    where
+        D: nalgebra::Dim,
+        nalgebra::DefaultAllocator: nalgebra::allocator::Allocator<D>,
+    {
+        fn sqrt(self) -> Self {
+            self.map(f64::sqrt)
+        }
+    }
 }
 use private_sqrt::Sqrt;
 

@@ -94,6 +94,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::experimental_api::StdDev;
     use nalgebra::{dmatrix, dvector, matrix, vector};
 
     fn try_create<D>(
@@ -144,6 +145,12 @@ mod tests {
     fn variance_is_covariance_diagonal_not_full_matrix() {
         let d = try_create(vector![0., 0.], matrix![2., 0.5; 0.5, 3.]);
         assert_eq!(d.variance(), vector![2., 3.]);
+    }
+
+    #[test]
+    fn std_dev_is_elementwise_sqrt_of_variance() {
+        let d = try_create(vector![0., 0.], matrix![4., 0.; 0., 9.]);
+        assert_eq!(d.std_dev(), vector![2., 3.]);
     }
 
     #[test]
