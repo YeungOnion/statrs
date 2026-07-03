@@ -556,16 +556,19 @@ mod tests {
         prec::assert_abs_diff_eq!(statistic, 0.35308934158478106, epsilon = 1e-9);
         prec::assert_abs_diff_eq!(pvalue, 0.03537981517302282, epsilon = 1e-9);
 
-        let (statistic, pvalue) = ks_onesample(
-            data.clone(),
-            &Exp::new(1.0 / mean).unwrap(),
-            KSOneSampleAlternativeMethod::TwoSidedExact,
-            NaNPolicy::Error,
-        )
-        .unwrap();
-        // scipy.stats.ks_1samp(x=data, cdf=exp_cdf, alternative="two-sided", method="exact")
-        prec::assert_abs_diff_eq!(statistic, 0.35308934158478106, epsilon = 1e-9);
-        prec::assert_abs_diff_eq!(pvalue, 0.03537978433644373, epsilon = 1e-9);
+        #[cfg(feature = "nalgebra")]
+        {
+            let (statistic, pvalue) = ks_onesample(
+                data.clone(),
+                &Exp::new(1.0 / mean).unwrap(),
+                KSOneSampleAlternativeMethod::TwoSidedExact,
+                NaNPolicy::Error,
+            )
+            .unwrap();
+            // scipy.stats.ks_1samp(x=data, cdf=exp_cdf, alternative="two-sided", method="exact")
+            prec::assert_abs_diff_eq!(statistic, 0.35308934158478106, epsilon = 1e-9);
+            prec::assert_abs_diff_eq!(pvalue, 0.03537978433644373, epsilon = 1e-9);
+        }
     }
     #[test]
     #[cfg(not(feature = "experimental_api"))]
@@ -630,6 +633,7 @@ mod tests {
         prec::assert_abs_diff_eq!(pvalue, 0.0, epsilon = 1e-9);
     }
     #[test]
+    #[cfg(feature = "nalgebra")]
     fn test_ks_onesample_marsaglia_tsang_wang_2003_exact() {
         // In their example, the value of h appears to be a typo and should really be 0.26
         // which is what is calcualted within the function
@@ -640,6 +644,7 @@ mod tests {
         prec::assert_abs_diff_eq!(pvalue, 0.6284796154565043, epsilon = 1e-9);
     }
     #[test]
+    #[cfg(feature = "nalgebra")]
     fn test_ks_onesample_bad_data_data_too_small() {
         let data: Vec<f64> = Vec::new();
         let result = ks_onesample(
@@ -660,6 +665,7 @@ mod tests {
         assert_eq!(result, Err(KSTestError::SampleTooSmall));
     }
     #[test]
+    #[cfg(feature = "nalgebra")]
     fn test_ks_onesample_bad_data_exact_too_large() {
         let data: Vec<f64> = (-150..=150).map(|i| i as f64 * 0.01).collect();
         let result = ks_onesample(
@@ -671,6 +677,7 @@ mod tests {
         assert_eq!(result, Err(KSTestError::ExactAndTooLarge));
     }
     #[test]
+    #[cfg(feature = "nalgebra")]
     fn test_ks_onesample_bad_data_exact_with_ties() {
         let mut data: Vec<f64> = (-10..=10).map(|i| i as f64 * 0.01).collect();
         data[0] = data[1];
@@ -717,6 +724,7 @@ mod tests {
         prec::assert_abs_diff_eq!(pvalue, 0.01768990758651141, epsilon = 1e-9);
     }
     #[test]
+    #[cfg(feature = "nalgebra")]
     fn test_ks_onesample_nan_in_data_w_propogate() {
         let mut data: Vec<f64> = (-10..=10).map(|i| i as f64 * 0.01).collect();
         data[0] = f64::NAN;
@@ -731,6 +739,7 @@ mod tests {
         assert!(pvalue.is_nan());
     }
     #[test]
+    #[cfg(feature = "nalgebra")]
     fn test_ks_onesample_nan_in_data_w_error() {
         let mut data: Vec<f64> = (-10..=10).map(|i| i as f64 * 0.01).collect();
         data[0] = f64::NAN;

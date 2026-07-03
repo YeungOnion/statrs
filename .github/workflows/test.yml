@@ -63,6 +63,9 @@ jobs:
       - name: Test no_std
         run: cargo test --no-default-features -F rand
 
+      - name: Test legacy trait set (nalgebra, no experimental_api)
+        run: cargo test --no-default-features --features std,rand,nalgebra
+
       - name: Test default features
         run: cargo test
 
