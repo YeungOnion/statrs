@@ -11,7 +11,7 @@
 //! See function level docs for what `None` return means outside of empty data.
 
 use core::f64;
-use std::ops::ControlFlow;
+use core::ops::ControlFlow;
 
 use num_traits::Zero;
 

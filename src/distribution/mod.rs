@@ -37,6 +37,7 @@ pub use self::multivariate_normal::{MultivariateNormal, MultivariateNormalError}
 #[cfg(feature = "nalgebra")]
 pub use self::multivariate_students_t::{MultivariateStudent, MultivariateStudentError};
 pub use self::negative_binomial::{NegativeBinomial, NegativeBinomialError};
+#[cfg(feature = "std")]
 pub(crate) use self::normal::cdf_unchecked as norm_cdf;
 pub use self::normal::{Normal, NormalError};
 pub use self::pareto::{Pareto, ParetoError};

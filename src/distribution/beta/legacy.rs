@@ -1,4 +1,6 @@
-use super::{Beta, BetaError};
+use super::Beta;
+#[cfg(test)]
+use super::BetaError;
 use crate::distribution::{Continuous, ContinuousCDF};
 use crate::statistics::*;
 

@@ -1,4 +1,6 @@
-use super::{Poisson, PoissonError};
+use super::Poisson;
+#[cfg(test)]
+use super::PoissonError;
 use crate::distribution::{Discrete, DiscreteCDF};
 use crate::statistics::*;
 use core::f64;

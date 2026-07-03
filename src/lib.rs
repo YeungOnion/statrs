@@ -65,4 +65,5 @@ pub mod stats_tests;
 #[cfg(feature = "experimental_api")]
 pub mod experimental_api;
 
+#[cfg(feature = "experimental_api")]
 trait Sealed {}

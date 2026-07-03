@@ -1,6 +1,8 @@
 use core::f64;
 use core::f64::consts::{E, PI};
-use nalgebra::{Cholesky, Const, DMatrix, DVector, Dim, DimMin, Dyn, OMatrix, OVector};
+#[cfg(feature = "rand")]
+use nalgebra::Const;
+use nalgebra::{Cholesky, DMatrix, DVector, Dim, DimMin, Dyn, OMatrix, OVector};
 
 /// Computes both the normalization and exponential argument in the normal
 /// distribution, returning `None` on dimension mismatch.

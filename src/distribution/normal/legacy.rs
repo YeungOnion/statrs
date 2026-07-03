@@ -1,4 +1,6 @@
-use super::{Normal, NormalError, cdf_unchecked, ln_pdf_unchecked, pdf_unchecked, sf_unchecked};
+#[cfg(test)]
+use super::NormalError;
+use super::{Normal, cdf_unchecked, ln_pdf_unchecked, pdf_unchecked, sf_unchecked};
 use crate::consts;
 use crate::distribution::{Continuous, ContinuousCDF};
 use crate::statistics::*;
