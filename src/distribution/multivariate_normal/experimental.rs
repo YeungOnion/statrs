@@ -1,7 +1,6 @@
 use super::{MultivariateNormal, density_distribution_exponential};
 use crate::experimental_api::{
-    ClosedFormCdf, InvalidVariate, Mean, Pdf, Probability, ProbabilityDensity, TryVariate,
-    Variance, Variate,
+    InvalidVariate, Mean, Pdf, ProbabilityDensity, TryVariate, Variance, Variate,
 };
 use nalgebra::{DimMin, OVector};
 
@@ -77,20 +76,6 @@ where
     }
 }
 
-impl<D> ClosedFormCdf for MultivariateNormal<D>
-where
-    D: DimMin<D, Output = D>,
-    nalgebra::DefaultAllocator: nalgebra::allocator::Allocator<D>
-        + nalgebra::allocator::Allocator<D, D>
-        + nalgebra::allocator::Allocator<D>,
-{
-    /// No closed-form or reference implementation of the multivariate normal
-    /// CDF exists in this crate yet.
-    fn cdf(&self, _x: Variate<Self, OVector<f64, D>>) -> Probability {
-        unimplemented!("multivariate normal CDF has no reference implementation in statrs yet")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,13 +140,5 @@ mod tests {
     fn std_dev_is_elementwise_sqrt_of_variance() {
         let d = try_create(vector![0., 0.], matrix![4., 0.; 0., 9.]);
         assert_eq!(d.std_dev(), vector![2., 3.]);
-    }
-
-    #[test]
-    #[should_panic]
-    fn cdf_is_unimplemented() {
-        let d = try_create(vector![0., 0.], matrix![1., 0.; 0., 1.]);
-        let x = d.try_variate(vector![1., 1.]).unwrap();
-        let _ = d.cdf(x);
     }
 }
