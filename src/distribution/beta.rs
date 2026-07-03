@@ -179,6 +179,7 @@ pub(crate) fn cdf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
     }
 }
 
+#[cfg(any(test, not(feature = "experimental_api")))]
 pub(crate) fn sf(shape_a: f64, shape_b: f64, x: f64) -> f64 {
     if x < 0.0 {
         1.0

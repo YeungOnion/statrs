@@ -19,6 +19,11 @@ impl ClosedFormCdf for Poisson {
         Probability::new(super::cdf(self.lambda, x.into_inner()))
             .expect("Poisson CDF is always in [0, 1]")
     }
+
+    fn sf(&self, x: Variate<Self, u64>) -> Probability {
+        let sf = crate::function::gamma::gamma_lr(x.into_inner() as f64 + 1.0, self.lambda);
+        Probability::new(sf).expect("Poisson SF is always in [0, 1]")
+    }
 }
 
 impl InverseCdf for Poisson {
@@ -73,6 +78,17 @@ mod tests {
         let d = Poisson::new(5.4).unwrap();
         let x = d.try_variate(10).unwrap();
         assert_eq!(d.cdf(x).into_inner(), super::super::cdf(5.4, 10));
+    }
+
+    #[test]
+    fn sf_complements_cdf() {
+        let d = Poisson::new(5.4).unwrap();
+        let x = d.try_variate(10).unwrap();
+        crate::prec::assert_abs_diff_eq!(
+            d.sf(x).into_inner(),
+            1.0 - d.cdf(x).into_inner(),
+            epsilon = 1e-10
+        );
     }
 
     #[test]

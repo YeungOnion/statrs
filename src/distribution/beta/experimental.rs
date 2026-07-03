@@ -23,6 +23,11 @@ impl ClosedFormCdf for Beta {
         Probability::new(super::cdf(self.shape_a, self.shape_b, x.into_inner()))
             .expect("Beta CDF is always in [0, 1]")
     }
+
+    fn sf(&self, x: Variate<Self, f64>) -> Probability {
+        Probability::new(super::cdf(self.shape_b, self.shape_a, 1.0 - x.into_inner()))
+            .expect("Beta CDF is always in [0, 1]")
+    }
 }
 
 impl InverseCdf for Beta {
@@ -95,6 +100,17 @@ mod tests {
         let d = Beta::new(9.0, 1.0).unwrap();
         let x = d.try_variate(0.5).unwrap();
         assert_eq!(d.pdf(x).into_inner(), super::super::pdf(9.0, 1.0, 0.5));
+    }
+
+    #[test]
+    fn sf_complements_cdf() {
+        let d = Beta::new(9.0, 1.0).unwrap();
+        let x = d.try_variate(0.3).unwrap();
+        crate::prec::assert_abs_diff_eq!(
+            d.sf(x).into_inner(),
+            1.0 - d.cdf(x).into_inner(),
+            epsilon = 1e-10
+        );
     }
 
     #[test]

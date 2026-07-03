@@ -107,16 +107,13 @@ pub(crate) fn pmf(lambda: f64, x: u64) -> f64 {
     (-lambda + x as f64 * lambda.ln() - factorial::ln_factorial(x)).exp()
 }
 
+#[cfg(any(test, not(feature = "experimental_api")))]
 pub(crate) fn ln_pmf(lambda: f64, x: u64) -> f64 {
     -lambda + x as f64 * lambda.ln() - factorial::ln_factorial(x)
 }
 
 pub(crate) fn cdf(lambda: f64, x: u64) -> f64 {
     gamma::gamma_ur(x as f64 + 1.0, lambda)
-}
-
-pub(crate) fn sf(lambda: f64, x: u64) -> f64 {
-    gamma::gamma_lr(x as f64 + 1.0, lambda)
 }
 
 pub(crate) fn inverse_cdf_unchecked(lambda: f64, p: f64) -> u64 {
@@ -276,24 +273,6 @@ mod tests {
         ];
         for (lambda, x, expect, eps) in test {
             assert_close(cdf(lambda, x), expect, eps);
-        }
-    }
-
-    #[test]
-    fn sf_matches_reference_values() {
-        let test = [
-            (1.5, 1, 0.44217459962892536, 1e-15),
-            (1.5, 10, 0.0000005517532358246565, 1e-15),
-            (1.5, 20, 2.3372210700347092e-17, 1e-15),
-            (5.4, 1, 0.971093881967279, 1e-16),
-            (5.4, 10, 0.022513699310235582, 1e-15),
-            (5.4, 20, 0.0000002800071708975261, 1e-15),
-            (10.8, 1, 0.9997592858597482, 1e-16),
-            (10.8, 10, 0.5160307640044303, 1e-15),
-            (10.8, 20, 0.003819923039191422, 1e-15),
-        ];
-        for (lambda, x, expect, eps) in test {
-            assert_close(sf(lambda, x), expect, eps);
         }
     }
 

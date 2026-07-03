@@ -87,8 +87,16 @@ pub trait Pmf: TryVariate {
 ///
 /// Note to implementors:
 /// If the method for Cdf evaluation is fallible, that should be a new trait.
+///
+/// `sf` defaults to `cdf(x).complement()`. Override it where the
+/// distribution has a dedicated survival-function computation that avoids
+/// the cancellation `1 - cdf(x)` suffers in the upper tail.
 pub trait ClosedFormCdf: TryVariate {
     fn cdf(&self, x: Variate<Self, Self::Repr>) -> Probability;
+
+    fn sf(&self, x: Variate<Self, Self::Repr>) -> Probability {
+        self.cdf(x).complement()
+    }
 }
 
 /// Inverse CDF. Implement directly — closed form, or a distribution-specific search.
@@ -217,6 +225,13 @@ mod tests {
     fn cdf_lower_boundary() {
         let x = Uniform12.try_variate(1.0).unwrap();
         assert_eq!(Uniform12.cdf(x).into_inner(), 0.0);
+    }
+
+    #[test]
+    fn sf_default_impl() {
+        let d = Uniform12;
+        let x = d.try_variate(1.5).unwrap();
+        assert_eq!(d.sf(x).into_inner(), 0.5);
     }
 
     #[test]

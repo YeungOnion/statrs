@@ -11,7 +11,7 @@ impl DiscreteCDF<u64, f64> for Poisson {
     }
 
     fn sf(&self, x: u64) -> f64 {
-        super::sf(self.lambda, x)
+        crate::function::gamma::gamma_lr(x as f64 + 1.0, self.lambda)
     }
 
     /// # Panics
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_sf() {
         let x = create_ok(1.5);
-        assert_eq!(x.sf(1), super::super::sf(1.5, 1));
+        assert_eq!(x.sf(1), crate::function::gamma::gamma_lr(2.0, 1.5));
     }
 
     #[test]
