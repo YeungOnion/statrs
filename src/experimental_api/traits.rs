@@ -91,7 +91,7 @@ pub trait ClosedFormCdf: TryVariate {
     fn cdf(&self, x: Variate<Self, Self::Repr>) -> Probability;
 }
 
-/// Inverse CDF. Implement directly — closed form or via [`bisect`][crate::experimental_api::bisect].
+/// Inverse CDF. Implement directly — closed form, or a distribution-specific search.
 pub trait InverseCdf: ClosedFormCdf {
     fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, Self::Repr>, InverseCdfError>;
 }
@@ -141,7 +141,7 @@ mod tests {
         }
     }
 
-    // Uniform on [1, 2) — used to test both closed-form and bisection inverse_cdf.
+    // Uniform on [1, 2) — used to test closed-form inverse_cdf.
     struct Uniform12;
 
     impl TryVariate for Uniform12 {
@@ -225,61 +225,6 @@ mod tests {
         let p = Probability::new(0.3).unwrap();
         let x = d.inverse_cdf(p).unwrap();
         assert!((d.cdf(x).into_inner() - 0.3).abs() < 1e-12);
-    }
-
-    #[test]
-    fn inverse_cdf_bisection_roundtrip() {
-        use crate::experimental_api::bisect::{
-            DEFAULT_MAX_ITER, Interval, SearchDirection, bisection_search,
-        };
-
-        struct Uniform12Bisect;
-
-        impl TryVariate for Uniform12Bisect {
-            type Repr = f64;
-            fn try_variate(&self, x: f64) -> Result<Variate<Self, f64>, InvalidVariate<f64>> {
-                if x.is_finite() && x >= 1.0 && x < 2.0 {
-                    Ok(Variate::new(x))
-                } else {
-                    Err(InvalidVariate(x))
-                }
-            }
-        }
-
-        impl ClosedFormCdf for Uniform12Bisect {
-            fn cdf(&self, x: Variate<Self, f64>) -> Probability {
-                Probability::new(x.into_inner() - 1.0).unwrap()
-            }
-        }
-
-        impl InverseCdf for Uniform12Bisect {
-            fn inverse_cdf(&self, p: Probability) -> Result<Variate<Self, f64>, InverseCdfError> {
-                bisection_search(
-                    Interval { lo: 1.0f64, hi: 2.0 },
-                    |cut| {
-                        let Ok(x) = self.try_variate(*cut) else {
-                            return SearchDirection::Right;
-                        };
-                        let diff = self.cdf(x).into_inner() - p.into_inner();
-                        if diff.abs() < 1e-10 {
-                            SearchDirection::Found
-                        } else if diff > 0.0 {
-                            SearchDirection::Left
-                        } else {
-                            SearchDirection::Right
-                        }
-                    },
-                    DEFAULT_MAX_ITER,
-                )
-                .and_then(|x| self.try_variate(x).ok())
-                .ok_or(InverseCdfError::NoConvergence)
-            }
-        }
-
-        let d = Uniform12Bisect;
-        let p = Probability::new(0.3).unwrap();
-        let x = d.inverse_cdf(p).unwrap();
-        assert!((d.cdf(x).into_inner() - 0.3).abs() < 1e-6);
     }
 
     #[test]

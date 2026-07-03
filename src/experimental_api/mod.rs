@@ -3,7 +3,6 @@
 //! Gated on the `experimental_api` feature.
 //! Expect this to change rapidly, potentially breaking every commit.
 
-pub mod bisect;
 pub mod distribution;
 pub mod fold;
 pub mod streaming;
